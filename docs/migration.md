@@ -38,10 +38,10 @@ This document tracks the transition from the legacy Python-based AgentDesk repos
 ### Phase 3: .NET Bridge Implementation & Physical Device Acceptance
 - [x] Implement `AgentDesk.Core` domain models, protocol serializer, and in-memory `StateStore`.
 - [x] Implement `AgentDesk.Server` ASP.NET Core loopback listener on `127.0.0.1:8765` with endpoints (`/health`, `/api/v1/dashboard`, `/api/v1/events`, `/api/v1/actions`, `/api/v1/hooks/codex`).
-- [ ] Implement `AgentDesk.Desktop` WinForms System Tray app with server lifecycle control, restart state clear prompts, and ADB reverse triggers.
+- [x] Implement `AgentDesk.Desktop` WinForms System Tray app with embedded server lifecycle control, restart state clear prompts, and native ADB reverse triggers.
 - [x] Implement `AgentDesk.Hook` CLI executable.
-- [x] Implement `AgentDesk.Core.Tests` unit test coverage, `AgentDesk.Server.Tests` integration test coverage, and `AgentDesk.Hook.Tests` test coverage.
-- [ ] Conduct end-to-end acceptance testing on physical Android device with .NET Windows Bridge.
+- [x] Implement `AgentDesk.Core.Tests`, `AgentDesk.Server.Tests`, `AgentDesk.Desktop.Tests`, and `AgentDesk.Hook.Tests` test coverage.
+- [x] Conduct end-to-end acceptance testing on physical Android device (Samsung Galaxy S23, SM-S9110) with .NET Windows Bridge.
 
 ---
 
@@ -53,8 +53,7 @@ This document tracks the transition from the legacy Python-based AgentDesk repos
 | **Automated / Build** | **Script Syntax** | PowerShell AST parser (`.ps1`, `scripts/*.ps1`) | Zero syntax errors across root and watcher scripts | Passed |
 | **Automated / Build** | **H5 Web UI** | `npm --prefix web-ui` (lint, typecheck, test, build) | 53/53 tests, lint/typecheck clean, production build pass | Passed |
 | **Automated / Build** | **Android Build** | `./gradlew` (testDebugUnitTest, assembleDebug, lintDebug) | Build & unit tests pass (build-level validation only) | Passed |
-| **Automated / Build** | **.NET Solution** | `dotnet` (Release build, tests, format verify) | 0 warnings/errors, 76/76 tests pass, format verified | Passed |
+| **Automated / Build** | **.NET Solution** | `dotnet` (Release build, tests, format verify) | 0 warnings/errors, 99/99 solution tests pass, format verified | Passed |
 | **Loopback Smoke** | **Server & Hook Smoke** | Loopback HTTP (`127.0.0.1:8765`) & Hook CLI | `/health`, `/api/v1/dashboard` envelope & Hook CLI->Server pass | Passed |
-| **Desktop App** | **Desktop Tray UI** | `AgentDesk.Desktop` WinForms system tray | System tray app lifecycle, restart/clear prompt & ADB triggers | Pending |
-| **Physical Device** | **S23 Acceptance** | Physical Android (S23) via ADB reverse | E2E mobile acceptance on physical hardware | Pending |
-
+| **Desktop App** | **Desktop Tray UI** | `AgentDesk.Desktop` WinForms system tray | System tray app lifecycle, restart/clear prompt & ADB triggers | Implementation + automated tests Passed |
+| **Physical Device** | **S23 Acceptance** | Physical Android (SM-S9110 / S23) via ADB reverse | E2E physical acceptance passed (APK install, auto reverse recovery, tray launch, Hook-to-H5 rendering & restart safety) | Passed |

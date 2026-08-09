@@ -2,7 +2,7 @@
 
 AgentDesk 是一個 Agent 任務執行狀態監控面板，透過原生 Android 應用程式、H5 WebView 以及高效能的**純 .NET 8 Windows Bridge**，提供即時狀態顯示、互動式審核（Approvals）與桌面 Hook 整合。
 
-> **專案狀態說明**：本 Repository 為 AgentDesk 的純 .NET 8 重構版本。舊版 Python Bridge 與 ESP32 硬體韌體已移除出此範疇。Windows Bridge 目前正進行 .NET 8 架構重寫。在實機全面驗收完成前，舊版 Repository (`AgentDesk`) 將繼續保留作為對照與驗收備用。
+> **專案狀態說明**：本 Repository 為 AgentDesk 的純 .NET 8 重構版本。舊版 Python Bridge 與 ESP32 硬體韌體已移除出此範疇。.NET 8 Windows Bridge 與 Samsung Galaxy S23 (SM-S9110) 實機端到端（E2E）驗收已全面通過。舊版 Repository (`AgentDesk`) 可繼續保留作為對照與備份，但不再需要作為未驗收之 Fallback 備用；本 Repository 即日起為持續開發的主庫。
 
 ---
 
@@ -45,9 +45,9 @@ AgentDesk (.NET & Android) 由以下四個核心層次組成：
 1. **`windows/` (.NET 8 Windows Bridge)**:
    - `AgentDesk.Core`: 領域模型、協定 Schema 與狀態管理。
    - `AgentDesk.Server`: 輕量級 HTTP API Server，僅監聽 `127.0.0.1:8765`。
-   - `AgentDesk.Desktop`: Windows 工作列圖示（System Tray）應用程式，負責 Server 生命週期、Android 啟動與 ADB Reverse 管理。
+   - `AgentDesk.Desktop`: Windows 工作列圖示（System Tray）應用程式，負責內嵌 Server 生命週期、Android 啟動與原生 ADB Reverse 管理。
    - `AgentDesk.Hook`: 接收 Codex 或其他 Agent 鉤子回呼的 CLI/Bridge 介面 (`/api/v1/hooks/codex`)。
-   - `tests/AgentDesk.Core.Tests`: 基於 xUnit 的單元測試套件。
+   - `tests/`: Core、Server、Desktop 與 Hook 之單元與整合測試套件。
 2. **`android-app/`**: 原生 Android 應用程式，承載 WebView 並透過 ADB Reverse HTTP API 與 Windows Bridge 通訊。
 3. **`web-ui/`**: 嵌入於 Android WebView 的 React H5 控制面板，展示當前 Turn、步驟進度、Diff 比對與 Action 操作審核。
 4. **`protocol/`**: Protocol v1 協定規格、JSON Schema 與 Payload 範例。
@@ -81,6 +81,10 @@ AgentDesk (.NET & Android) 由以下四個核心層次組成：
     ├── AgentDesk.Desktop/
     ├── AgentDesk.Hook/
     └── tests/
+        ├── AgentDesk.Core.Tests/
+        ├── AgentDesk.Server.Tests/
+        ├── AgentDesk.Desktop.Tests/
+        └── AgentDesk.Hook.Tests/
 ```
 
 ---
@@ -88,8 +92,10 @@ AgentDesk (.NET & Android) 由以下四個核心層次組成：
 ## 🚀 環境要求與使用說明
 
 ### 前置需求
-- **.NET 8 SDK** (建置與執行 `windows/` 專案需安裝 .NET 8 SDK，目前環境僅有 .NET Runtime)。
-- **Android SDK & platform-tools** (`adb.exe` 需在 `PATH` 中，或位於 `%LOCALAPPDATA%\Android\Sdk\platform-tools`)。
+- **.NET 8 SDK / Desktop Runtime**：
+  - 從原始碼建置或執行 `dotnet run` 需要 **.NET 8 SDK**。
+  - 僅執行已發布之框架相依 `AgentDesk.Desktop.exe` 需要 **.NET 8 Desktop Runtime**。
+- **Android SDK & platform-tools** (`adb.exe` 需在 `PATH`、`ANDROID_HOME`、`ANDROID_SDK_ROOT` 或 `%LOCALAPPDATA%\Android\Sdk\platform-tools`)。
 - **Node.js (v18+) & npm** (用於 `web-ui` 開發與產出靜態資源)。
 - **JDK 17+** (用於 Android APK 編譯)。
 
@@ -107,11 +113,26 @@ AgentDesk (.NET & Android) 由以下四個核心層次組成：
 ```
 維持 `adb reverse tcp:8765 tcp:8765` 監聽，啟動背景 Watcher，開啟 Android 應用程式，並檢查 `http://127.0.0.1:8765/health`。若 .NET Server 尚未啟動，將顯示提示訊息。
 
-#### 3. 建置與測試 .NET Windows Bridge（需 .NET 8 SDK）
+#### 3. 建置並執行 .NET Desktop 系統列應用程式
+點擊編譯後的 `AgentDesk.Desktop.exe` 可於背景系統列執行，不會出現 Console 視窗。
+
 ```powershell
-cd windows
-dotnet build
-dotnet test
+# 建置整個 Windows Solution
+dotnet build windows/AgentDesk.sln -c Release
+
+# 執行 Desktop 系統列應用程式
+dotnet run --project windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release
+
+# 發布依賴框架的 x64 Desktop 可執行檔
+dotnet publish windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release -r win-x64 --self-contained false -o windows/artifacts/AgentDesk.Desktop-win-x64
+
+# 執行全套測試
+dotnet test windows/AgentDesk.sln --configuration Release --no-build
+```
+
+#### 4. 執行 CLI Hook
+```powershell
+dotnet run --project windows/AgentDesk.Hook/AgentDesk.Hook.csproj
 ```
 
 ---

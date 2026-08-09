@@ -2,7 +2,7 @@
 
 An agentic task execution deck providing real-time status monitoring, interactive approvals, and desktop hook integration via a native Android app, H5 WebView, and a high-performance **pure .NET 8 Windows Bridge**.
 
-> **Project Status Notice**: This repository is the updated, pure .NET 8 iteration of AgentDesk. The legacy Python bridge and ESP32 hardware firmware have been removed from this scope. The Windows Bridge is currently undergoing architecture migration into native .NET 8. The legacy repository (`AgentDesk`) remains active and preserved for physical device acceptance testing until full .NET Bridge validation.
+> **Project Status Notice**: This repository is the pure .NET 8 iteration of AgentDesk. The legacy Python bridge and ESP32 hardware firmware have been removed from this scope. Both the .NET 8 Windows Bridge and Samsung Galaxy S23 (SM-S9110) physical end-to-end (E2E) device acceptance are completed. The legacy repository (`AgentDesk`) remains as a reference and backup, but is no longer required as an unvalidated fallback. This repository serves as the primary home for ongoing development.
 
 ---
 
@@ -44,10 +44,10 @@ AgentDesk (.NET & Android) consists of four primary layers:
 ### Key Components
 1. **`windows/` (.NET 8 Windows Bridge)**:
    - `AgentDesk.Core`: Domain models, protocol schemas, and state management.
-   - `AgentDesk.Server`: Lightweight HTTP/WebSocket server listening on `127.0.0.1:8765`.
-   - `AgentDesk.Desktop`: Windows System Tray app managing server lifecycle, Android launching, and ADB reverse tunneling.
+   - `AgentDesk.Server`: Lightweight ASP.NET Core loopback server listening on `127.0.0.1:8765`.
+   - `AgentDesk.Desktop`: Windows System Tray app managing embedded server lifecycle, Android launching, and native ADB reverse tunneling (`tcp:8765 tcp:8765`).
    - `AgentDesk.Hook`: CLI bridge for receiving Codex / agent hook callbacks (`/api/v1/hooks/codex`).
-   - `tests/AgentDesk.Core.Tests`: Unit test suite using xUnit.
+   - `tests/`: Unit & integration test suites for Core, Server, Desktop, and Hook projects.
 2. **`android-app/`**: Native Android app hosting the WebView interface and communicating with the Windows Bridge via HTTP API over ADB reverse.
 3. **`web-ui/`**: Modern React H5 dashboard embedded into Android WebView, displaying active turns, step progress, diffs, and action approval controls.
 4. **`protocol/`**: Protocol v1 definitions, JSON schemas, and message payload examples.
@@ -81,6 +81,10 @@ AgentDesk (.NET & Android) consists of four primary layers:
     ├── AgentDesk.Desktop/
     ├── AgentDesk.Hook/
     └── tests/
+        ├── AgentDesk.Core.Tests/
+        ├── AgentDesk.Server.Tests/
+        ├── AgentDesk.Desktop.Tests/
+        └── AgentDesk.Hook.Tests/
 ```
 
 ---
@@ -88,8 +92,10 @@ AgentDesk (.NET & Android) consists of four primary layers:
 ## 🚀 Setup & Usage
 
 ### Prerequisites
-- **.NET 8 SDK** (Required to compile and run `windows/` solution via `dotnet build` / `dotnet run`). *Note: Current environment requires installing the .NET 8 SDK.*
-- **Android SDK & platform-tools** (`adb.exe` in `PATH` or `%LOCALAPPDATA%\Android\Sdk\platform-tools`).
+- **.NET 8 SDK / Desktop Runtime**:
+  - Building from source or running via `dotnet run` requires **.NET 8 SDK**.
+  - Running only the published framework-dependent `AgentDesk.Desktop.exe` requires **.NET 8 Desktop Runtime**.
+- **Android SDK & platform-tools** (`adb.exe` in `PATH`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, or `%LOCALAPPDATA%\Android\Sdk\platform-tools`).
 - **Node.js (v18+) & npm** (for `web-ui` development and building assets).
 - **JDK 17+** (for Android Gradle build).
 
@@ -107,10 +113,20 @@ This script validates the `web-ui` (lint, typecheck, test, build), builds the An
 ```
 Ensures `adb reverse tcp:8765 tcp:8765` is maintained, starts the background watcher, launches the Android application, and checks `http://127.0.0.1:8765/health`. If the .NET Server is not yet running, a friendly warning is printed.
 
-#### 3. Build & Test .NET Windows Bridge (Requires .NET 8 SDK)
+#### 3. Build & Run .NET Windows Desktop Tray App
+Double-clicking the compiled `AgentDesk.Desktop.exe` runs silently in the system tray without a console window.
+
 ```powershell
-dotnet restore windows/AgentDesk.sln
-dotnet build windows/AgentDesk.sln --configuration Release --no-restore
+# Restore & build solution
+dotnet build windows/AgentDesk.sln -c Release
+
+# Run Desktop System Tray App
+dotnet run --project windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release
+
+# Publish framework-dependent x64 Desktop executable
+dotnet publish windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release -r win-x64 --self-contained false -o windows/artifacts/AgentDesk.Desktop-win-x64
+
+# Run solution tests
 dotnet test windows/AgentDesk.sln --configuration Release --no-build
 ```
 

@@ -253,4 +253,15 @@ public class ServerIntegrationTests
         var text = await response.Content.ReadAsStringAsync();
         Assert.Contains("Unknown agent hook path", text);
     }
+
+    [Theory]
+    [InlineData("http://0.0.0.0:0")]
+    [InlineData("http://192.168.1.2:8765")]
+    [InlineData("https://127.0.0.1:0")]
+    [InlineData("ftp://127.0.0.1:8765")]
+    [InlineData("not_a_url")]
+    public void Build_UrlOverrideValidation_RejectsInvalidUrls(string urlOverride)
+    {
+        Assert.Throws<ArgumentException>(() => AgentDeskServer.Build(Array.Empty<string>(), urlOverride));
+    }
 }

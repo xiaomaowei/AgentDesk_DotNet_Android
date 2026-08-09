@@ -20,7 +20,9 @@ This document provides instructions for building, installing, and running the na
                             ▼
 ┌────────────────────────────────────────────────────────┐
 │           Windows Host (.NET 8 Bridge)                 │
-│  - AgentDesk.Server listening on http://127.0.0.1:8765  │
+│  - AgentDesk.Desktop System Tray App                   │
+│  - Embedded AgentDesk.Server listening on 127.0.0.1:8765│
+│  - Native ADB Manager maintaining reverse tunnel       │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -34,15 +36,16 @@ The Android app embeds the `web-ui` SPA inside an Android `WebView`. The H5 appl
    - USB Debugging enabled.
    - Authorized connection to the Windows host machine.
 2. **Android SDK & platform-tools**:
-   - `adb.exe` located in `PATH` or `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`.
+   - `adb.exe` located in `PATH`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, or `%LOCALAPPDATA%\Android\Sdk\platform-tools\adb.exe`.
 3. **JDK 17+**:
    - `JAVA_HOME` pointing to a valid JDK (or Android Studio JBR).
 4. **Node.js (v18+) & npm**:
    - For building `web-ui` static assets copied into Android app assets.
-5. **.NET 8 SDK** *(Transition requirement)*:
-   - Required to run the host `AgentDesk.Server` / `AgentDesk.Desktop`.
+5. **.NET 8 SDK / Desktop Runtime**:
+   - Building from source or running via `dotnet run` requires **.NET 8 SDK**.
+   - Running only the published framework-dependent `AgentDesk.Desktop.exe` requires **.NET 8 Desktop Runtime**.
 
-> **Note on Transition Status**: The legacy Python bridge virtual environment (`.venv`) is deprecated and disabled. Do **not** attempt to setup or launch Python venv environments. The host server must be launched using the .NET 8 Windows Bridge (`windows/` project solution).
+> **Note on Transition Status**: The legacy Python bridge virtual environment (`.venv`) is deprecated and disabled. The host server is launched using the .NET 8 Windows Bridge (`windows/AgentDesk.Desktop` System Tray App or standalone `windows/AgentDesk.Server`). `AgentDesk.Desktop` natively manages ADB reverse tunnels (`tcp:8765 tcp:8765`) and app launches in .NET.
 
 ---
 
@@ -60,12 +63,12 @@ This script performs:
 - ADB reverse tunnel configuration (`adb reverse tcp:8765 tcp:8765`).
 - Launching the app on the device.
 
-### 2. Launching App & Tunnel Watcher
-To establish the reverse tunnel and launch the Android application without re-building:
+### 2. Launching App & Tunnel via .NET Desktop Tray App
+Launch the .NET System Tray App:
 ```powershell
-.\Start-AgentDeckAndroid.ps1
+dotnet run --project windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release
 ```
-This script starts the background watcher (`Watch-AgentDeckAndroidReverse.ps1`) to ensure `tcp:8765` tunneling remains active and checks server health at `http://127.0.0.1:8765/health`. If the .NET Server is not running, a warning will be displayed.
+Or double-click `AgentDesk.Desktop.exe`. The tray app automatically hosts `AgentDesk.Server` on `127.0.0.1:8765`, maintains ADB reverse port forwarding (`tcp:8765 tcp:8765`), and provides a context menu option to **Connect & Launch Android**.
 
 ---
 
@@ -73,4 +76,24 @@ This script starts the background watcher (`Watch-AgentDeckAndroidReverse.ps1`) 
 
 - **Package Name**: `com.agentdeck.mobile`
 - **Main Activity**: `com.agentdeck.mobile.MainActivity`
+- **Explicit Component**: `com.agentdeck.mobile/.MainActivity`
 - **Port Forwarding**: `tcp:8765 tcp:8765`
+
+---
+
+## ✅ Verified Physical Device Acceptance (2026-08-09)
+
+Physical end-to-end (E2E) integration has been verified on physical Android hardware connected to the .NET 8 Windows Bridge:
+
+- **Target Device**: Samsung Galaxy S23 (Model `SM-S9110`, Serial `RFCW607NEMH`).
+- **Application Package**: `com.agentdeck.mobile` (`versionName 0.1.0`).
+- **Host Desktop Runtime**: `AgentDesk.Desktop.exe` (published framework-dependent `win-x64` executable) running in Windows System Tray, hosting embedded `AgentDesk.Server` on loopback `127.0.0.1:8765`.
+
+### Verified E2E Results
+1. **Installation & Build Verification**:
+   - H5/Android validation/build passed separately.
+   - Built debug APK installed successfully using `adb install -r` (`Success`).
+2. **Automated Tunnel Recovery**: Manually removing the ADB port forwarding (`adb reverse --remove tcp:8765`) triggered the `AgentDesk.Desktop` watcher, which automatically re-established `tcp:8765 tcp:8765`.
+3. **Desktop Tray Control**: Invoking **Connect & Launch Android** from the Windows system tray context menu brought `com.agentdeck.mobile/.MainActivity` into the active foreground on the S23 device.
+4. **End-to-End Real Hook Delivery**: Invoking `AgentDesk.Hook.exe` (`UserPromptSubmit`) dispatched payload to `AgentDesk.Server`, which instantly rendered on the S23 H5 WebView interface (displaying host online status, project `AgentDesk_DotNet_Android`, running status, and prompt content).
+5. **Restart Server Confirmation Safety**: Restarting the server from tray prompted a safety confirmation dialog warning that active sessions/pending approvals will be cleared; selecting `No (N)` safely retained active envelope state and prompts.
