@@ -1,0 +1,93 @@
+{
+  "description": "Forward Codex lifecycle events to AgentDesk hook executable.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
+            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command '$root = git rev-parse --show-toplevel; & \"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\"'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
+            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command '$root = git rev-parse --show-toplevel; & \"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\"'",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
+            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command '$root = git rev-parse --show-toplevel; & \"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\"'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
+            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command '$root = git rev-parse --show-toplevel; & \"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\"'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
+            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command '$root = git rev-parse --show-toplevel; & \"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\"'",
+            "timeout": 315,
+            "statusMessage": "Waiting for AgentDesk approval"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
+            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command '$root = git rev-parse --show-toplevel; & \"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\"'",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
+            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command '$root = git rev-parse --show-toplevel; & \"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\"'",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

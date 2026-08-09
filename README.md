@@ -113,27 +113,36 @@ This script validates the `web-ui` (lint, typecheck, test, build), builds the An
 ```
 Ensures `adb reverse tcp:8765 tcp:8765` is maintained, starts the background watcher, launches the Android application, and checks `http://127.0.0.1:8765/health`. If the .NET Server is not yet running, a friendly warning is printed.
 
-#### 3. Build & Run .NET Windows Desktop Tray App
+#### 3. Build, Publish & Run .NET Windows Desktop Tray App & Hook
 Double-clicking the compiled `AgentDesk.Desktop.exe` runs silently in the system tray without a console window.
 
 ```powershell
+# Publish both AgentDesk.Desktop and AgentDesk.Hook as win-x64 artifacts
+.\Publish-AgentDeskWindows.ps1
+
 # Restore & build solution
 dotnet build windows/AgentDesk.sln -c Release
 
 # Run Desktop System Tray App
 dotnet run --project windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release
 
-# Publish framework-dependent x64 Desktop executable
-dotnet publish windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release -r win-x64 --self-contained false -o windows/artifacts/AgentDesk.Desktop-win-x64
-
 # Run solution tests
 dotnet test windows/AgentDesk.sln --configuration Release --no-build
 ```
 
-#### 4. Run CLI Hook
-```powershell
-dotnet run --project windows/AgentDesk.Hook/AgentDesk.Hook.csproj
-```
+#### 4. Setup & Verify Codex Project Hooks
+To enable real automatic lifecycle event forwarding from Codex tasks to AgentDesk:
+
+1. **Publish Executables**: Run `.\Publish-AgentDeskWindows.ps1` to produce `windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe` and `windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook.exe`.
+2. **Start Desktop Host**: Launch `AgentDesk.Desktop.exe` (or via `dotnet run --project windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj`).
+3. **Confirm ADB Reverse**: Ensure `adb reverse tcp:8765 tcp:8765` is active for connected Android devices.
+4. **Approve Project Hooks**: Trust and approve project hooks when prompted by Codex to allow `.codex/hooks.json` execution.
+5. **Verify Registered Hooks**: Confirm all 7 lifecycle hooks are active (`SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `Stop`).
+6. **Start Real Task**: Launch a new Codex task to initiate automatic real-hook forwarding.
+
+> **Verification Notice**:
+> - **Synthetic Hook Verification**: Manual CLI invocation (`UserPromptSubmit` payload via `AgentDesk.Hook.exe`) was validated as an earlier lower-layer test.
+> - **Automatic Real-Task Verification (2026-08-10)**: Real automatic lifecycle forwarding is verified on physical Samsung Galaxy S23 (SM-S9110 / RFCW607NEMH). All 7 hooks were configured in `.codex/hooks.json`, and 5 lifecycle events (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`) were automatically triggered during a real Codex CLI v0.147.0 task. Server state evolved `commentary:delivered` -> `tool:running` -> `tool:completed` -> `final:delivered` with token counts, and Android `SharedPreferences` independently verified phone-visible delivery for `Prompt=true`, `Commentary=true`, `CompletedTool=true`, `Final=true`, and `Tokens=true`. (`PermissionRequest` and automatic `SessionEnd` remain configured but unexercised).
 
 ---
 

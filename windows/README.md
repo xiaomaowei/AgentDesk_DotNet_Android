@@ -39,11 +39,11 @@ dotnet build windows/AgentDesk.sln --configuration Release --no-restore
 # Run test suites
 dotnet test windows/AgentDesk.sln --configuration Release --no-build
 
+# Publish framework-dependent win-x64 Desktop and Hook executables via root script
+.\Publish-AgentDeskWindows.ps1
+
 # Run System Tray App
 dotnet run --project windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release
-
-# Publish framework-dependent x64 Desktop executable
-dotnet publish windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release -r win-x64 --self-contained false -o windows/artifacts/AgentDesk.Desktop-win-x64
 
 # Run standalone ASP.NET Core Server
 dotnet run --project windows/AgentDesk.Server/AgentDesk.Server.csproj -c Release
@@ -51,3 +51,11 @@ dotnet run --project windows/AgentDesk.Server/AgentDesk.Server.csproj -c Release
 # Run CLI Hook
 dotnet run --project windows/AgentDesk.Hook/AgentDesk.Hook.csproj -c Release
 ```
+
+## Published Artifacts
+
+Running `Publish-AgentDeskWindows.ps1` creates deterministic framework-dependent `win-x64` output directories:
+- `windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`
+- `windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook.exe`
+
+The tracked `.codex/hooks.json` points all Windows hook invocations directly at `windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook.exe`.

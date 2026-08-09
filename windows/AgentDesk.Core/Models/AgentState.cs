@@ -58,7 +58,7 @@ public record AgentState
                 Id = CurrentTurn.Id,
                 StartedAt = CurrentTurn.StartedAt,
                 Prompt = CurrentTurn.Prompt.Length > 8000 ? CurrentTurn.Prompt[..8000] : CurrentTurn.Prompt,
-                Items = CurrentTurn.Items.Take(20).Select(i => new TurnItem
+                Items = CurrentTurn.Items.Select(i => new TurnItem
                 {
                     Id = i.Id,
                     Timestamp = i.Timestamp,

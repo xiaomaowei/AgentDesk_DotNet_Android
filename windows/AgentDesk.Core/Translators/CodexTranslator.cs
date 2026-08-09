@@ -14,6 +14,8 @@ public class CodexTranslator
 {
     private readonly Dictionary<string, CurrentTurn> _currentTurns = new();
     private readonly Dictionary<string, List<string>> _modelHistory = new();
+    private readonly Dictionary<string, string> _lastCommentaryId = new();
+    private readonly LinkedList<string> _sessionLru = new();
     private readonly object _lock = new();
 
     public HookUpdate Translate(JsonElement eventElement)
@@ -21,6 +23,9 @@ public class CodexTranslator
         string eventName = GetStringProperty(eventElement, "hook_event_name") ?? "Unknown";
         string sessionId = GetStringProperty(eventElement, "session_id") ?? $"session_{Guid.NewGuid():n}";
         string cwd = GetStringProperty(eventElement, "cwd") ?? "";
+        string? transcriptPath = GetStringProperty(eventElement, "transcript_path");
+
+        var parseResult = TranscriptParser.ParseTail(transcriptPath);
 
         string project = ResolveProjectName(cwd);
         bool waiting = eventName == "PermissionRequest";
@@ -31,13 +36,14 @@ public class CodexTranslator
 
         lock (_lock)
         {
+            TouchSession(sessionId);
+
             AccumulateModels(sessionId, eventElement);
-            UpdateCurrentTurn(sessionId, eventName, eventElement);
+            UpdateCurrentTurn(sessionId, eventName, eventElement, parseResult);
 
             if (removeSession)
             {
-                _currentTurns.Remove(sessionId);
-                _modelHistory.Remove(sessionId);
+                RemoveSessionData(sessionId);
             }
 
             var models = _modelHistory.TryGetValue(sessionId, out var history) ? new List<string>(history) : new List<string>();
@@ -51,6 +57,7 @@ public class CodexTranslator
                 Status = status,
                 Message = message.Length > 180 ? message[..180] : message,
                 StartedAt = DateTimeOffset.UtcNow,
+                ConversationTokens = parseResult.ConversationTokens,
                 RequiresAction = waiting,
                 Actions = waiting ? new List<string> { DeviceAction.Approve, DeviceAction.Reject } : new List<string>(),
                 TargetId = null,
@@ -69,6 +76,37 @@ public class CodexTranslator
                 WaitsForAction = waiting,
                 RemoveSession = removeSession
             };
+        }
+    }
+
+    private void TouchSession(string sessionId)
+    {
+        var node = _sessionLru.Find(sessionId);
+        if (node != null)
+        {
+            _sessionLru.Remove(node);
+        }
+        _sessionLru.AddLast(sessionId);
+
+        while (_sessionLru.Count > 100)
+        {
+            var oldestNode = _sessionLru.First;
+            if (oldestNode == null) break;
+            var oldest = oldestNode.Value;
+            _sessionLru.RemoveFirst();
+            RemoveSessionData(oldest);
+        }
+    }
+
+    private void RemoveSessionData(string sessionId)
+    {
+        _currentTurns.Remove(sessionId);
+        _modelHistory.Remove(sessionId);
+        _lastCommentaryId.Remove(sessionId);
+        var node = _sessionLru.Find(sessionId);
+        if (node != null)
+        {
+            _sessionLru.Remove(node);
         }
     }
 
@@ -213,7 +251,7 @@ public class CodexTranslator
         }
     }
 
-    private void UpdateCurrentTurn(string sessionId, string eventName, JsonElement el)
+    private void UpdateCurrentTurn(string sessionId, string eventName, JsonElement el, TranscriptParseResult parseResult)
     {
         var now = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ");
 
@@ -243,6 +281,8 @@ public class CodexTranslator
 
         if (eventName == "PermissionRequest")
         {
+            ProcessLatestCommentary(currentTurn, sessionId, parseResult.LatestCommentary, now, insertIndex: null);
+
             var itemId = !string.IsNullOrEmpty(toolUseId) ? $"approval_{currentTurn.Id}_{toolUseId}" : $"approval_{currentTurn.Id}_{Guid.NewGuid():n}"[..21];
             var existing = currentTurn.Items.FirstOrDefault(i => i.Id == itemId && i.Kind == TurnItemKind.Approval);
 
@@ -273,6 +313,8 @@ public class CodexTranslator
                 matchingApproval.Phase = TurnItemPhase.Delivered;
             }
 
+            ProcessLatestCommentary(currentTurn, sessionId, parseResult.LatestCommentary, now, insertIndex: null);
+
             var itemId = !string.IsNullOrEmpty(toolUseId) ? $"tool_{currentTurn.Id}_{toolUseId}" : $"tool_{currentTurn.Id}_{Guid.NewGuid():n}"[..21];
             currentTurn.Items.Add(new TurnItem
             {
@@ -300,12 +342,17 @@ public class CodexTranslator
 
             if (existing != null)
             {
+                int idx = currentTurn.Items.IndexOf(existing);
+                ProcessLatestCommentary(currentTurn, sessionId, parseResult.LatestCommentary, now, insertIndex: idx);
+
                 existing.Phase = TurnItemPhase.Completed;
                 existing.Label = Truncate(FormatToolLabel(el, "Completed"), 180);
                 existing.Timestamp = now;
             }
             else
             {
+                ProcessLatestCommentary(currentTurn, sessionId, parseResult.LatestCommentary, now, insertIndex: null);
+
                 var itemId = !string.IsNullOrEmpty(toolUseId) ? $"tool_{currentTurn.Id}_{toolUseId}" : $"tool_{currentTurn.Id}_{Guid.NewGuid():n}"[..21];
                 currentTurn.Items.Add(new TurnItem
                 {
@@ -350,6 +397,38 @@ public class CodexTranslator
         {
             var toRemove = toolItems[0];
             currentTurn.Items.Remove(toRemove);
+        }
+    }
+
+    private void ProcessLatestCommentary(CurrentTurn currentTurn, string sessionId, CommentaryItem? latestCommentary, string now, int? insertIndex)
+    {
+        if (latestCommentary == null) return;
+
+        if (_lastCommentaryId.TryGetValue(sessionId, out var lastId) && lastId == latestCommentary.Id)
+        {
+            return;
+        }
+
+        _lastCommentaryId[sessionId] = latestCommentary.Id;
+
+        var commentaryTurnItem = new TurnItem
+        {
+            Id = $"commentary_{currentTurn.Id}_{latestCommentary.Id}",
+            Timestamp = now,
+            Kind = TurnItemKind.Commentary,
+            Phase = TurnItemPhase.Delivered,
+            Label = "Commentary",
+            Content = latestCommentary.Content,
+            Sig = string.Empty
+        };
+
+        if (insertIndex.HasValue && insertIndex.Value >= 0 && insertIndex.Value <= currentTurn.Items.Count)
+        {
+            currentTurn.Items.Insert(insertIndex.Value, commentaryTurnItem);
+        }
+        else
+        {
+            currentTurn.Items.Add(commentaryTurnItem);
         }
     }
 
