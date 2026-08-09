@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "type": "action",
+  "id": "action_01",
+  "timestamp": null,
+  "payload": {
+    "action": "approve",
+    "target_id": "approval_01"
+  }
+}

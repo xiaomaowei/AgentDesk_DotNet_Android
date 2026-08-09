@@ -1,0 +1,10 @@
+{
+  "version": "1.0",
+  "type": "action_result",
+  "id": "msg_01",
+  "timestamp": "2026-08-02T12:02:16Z",
+  "payload": {
+    "accepted": true,
+    "action": "approve"
+  }
+}

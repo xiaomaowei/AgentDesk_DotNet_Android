@@ -1,0 +1,45 @@
+# .NET Build Outputs & IDE
+[Bb]in/
+[Oo]bj/
+artifacts/
+.vs/
+*.user
+*.userosv
+*.suo
+*.userprefs
+
+# Android & Gradle
+.gradle/
+build/
+**/build/
+local.properties
+*.apk
+*.aar
+
+# Node & H5 UI (preserve lock files)
+node_modules/
+dist/
+web-ui/node_modules/
+web-ui/dist/
+
+# Python & PlatformIO Old Caches
+.venv/
+venv/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+.pio/
+
+# IDE & OS Specific
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs & Secrets
+*.log
+*.env
+*.env.local
+output/

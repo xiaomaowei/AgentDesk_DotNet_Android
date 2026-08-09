@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/xiaomaowei/AgentDeck/protocol/agentdeck-v1.schema.json",
+  "title": "AgentDeck Protocol v1",
+  "oneOf": [
+    { "$ref": "#/$defs/stateEnvelope" },
+    { "$ref": "#/$defs/actionEnvelope" },
+    { "$ref": "#/$defs/actionResultEnvelope" },
+    { "$ref": "#/$defs/errorEnvelope" },
+    { "$ref": "#/$defs/pingEnvelope" }
+  ],
+  "$defs": {
+    "envelope": {
+      "type": "object",
+      "required": ["version", "type", "id", "timestamp", "payload"],
+      "properties": {
+        "version": { "const": "1.0" },
+        "type": { "type": "string" },
+        "id": { "type": "string", "minLength": 1 },
+        "timestamp": {
+          "oneOf": [
+            { "type": "string", "format": "date-time" },
+            { "type": "null" }
+          ]
+        },
+        "payload": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "stateEnvelope": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "properties": {
+            "type": { "const": "state" },
+            "payload": { "$ref": "#/$defs/statePayload" }
+          }
+        }
+      ]
+    },
+    "statePayload": {
+      "type": "object",
+      "required": ["agent", "project", "status", "message", "elapsed", "requires_action", "actions"],
+      "properties": {
+        "agent": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "project": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "conversation_name": { "type": "string", "minLength": 1, "maxLength": 96 },
+        "status": { "enum": ["idle", "working", "waiting", "completed", "error"] },
+        "message": { "type": "string", "maxLength": 256 },
+        "elapsed": { "type": "integer", "minimum": 0 },
+        "requires_action": { "type": "boolean" },
+        "actions": {
+          "type": "array",
+          "items": { "enum": ["approve", "reject"] },
+          "uniqueItems": true,
+          "maxItems": 2
+        },
+        "target_id": { "type": ["string", "null"] },
+        "conversation_tokens": { "type": ["integer", "null"], "minimum": 0 },
+        "usage_remaining_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "usage_reset_date": { "type": "string", "maxLength": 16 },
+        "usage_reset_available": { "type": "integer", "minimum": 0 },
+        "usage_provider": { "enum": ["codex", "antigravity"] },
+        "usage_model_label": { "type": "string", "maxLength": 64 },
+        "usage_weekly_remaining_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "usage_weekly_refresh_text": { "type": "string", "maxLength": 64 },
+        "usage_five_hour_remaining_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "usage_five_hour_refresh_text": { "type": "string", "maxLength": 64 },
+        "usage_buckets": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "required": ["label", "remaining_percent"],
+            "properties": {
+              "label": { "type": "string", "minLength": 1, "maxLength": 64 },
+             "remaining_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+              "refresh_text": { "type": "string", "maxLength": 64 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "codex_usage": {
+          "type": ["object", "null"],
+          "properties": {
+            "weekly_remaining_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "reset_text": { "type": "string", "maxLength": 64 },
+            "reset_date": { "type": "string", "maxLength": 16 },
+            "reset_available": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "antigravity_usage": {
+          "type": ["object", "null"],
+          "properties": {
+            "weekly_remaining_percent": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "weekly_refresh_text": { "type": "string", "maxLength": 64 },
+            "five_hour_remaining_percent": { "type": ["integer", "null"], "minimum": 0, "maximum": 100 },
+            "five_hour_refresh_text": { "type": "string", "maxLength": 64 },
+            "gemini_five_hour_remaining_percent": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "gemini_five_hour_refresh_text": { "type": "string", "maxLength": 64 },
+            "claude_five_hour_remaining_percent": { "type": ["number", "null"], "minimum": 0, "maximum": 100 },
+            "claude_five_hour_refresh_text": { "type": "string", "maxLength": 64 }
+          },
+          "additionalProperties": false
+        },
+        "steps": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "minItems": 1,
+          "maxItems": 10
+        },
+        "current_step": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "recent_events": {
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "required": ["kind", "label"],
+            "properties": {
+              "kind": { "enum": ["command", "tool", "reply", "status"] },
+              "label": { "type": "string", "minLength": 1, "maxLength": 180 },
+              "content": { "type": ["string", "null"], "maxLength": 1600 }
+            },
+            "additionalProperties": false
+          }
+        },
+        "models": {
+          "type": "array",
+          "maxItems": 8,
+          "description": "Ordered, de-duped list of model labels used in this session (e.g. [\"Sol High\", \"Gemini 3.6 Flash\"])",
+          "items": { "type": "string", "minLength": 1, "maxLength": 32 }
+        },
+        "current_turn": {
+          "type": ["object", "null"],
+          "description": "Current Codex turn progress (added in Task 1; backward-compatible).",
+          "required": ["id", "started_at", "prompt", "items"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "started_at": { "type": "string" },
+            "prompt": { "type": "string", "maxLength": 8000 },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "timestamp", "kind", "phase", "label"],
+                "properties": {
+                  "id": { "type": "string", "minLength": 1 },
+                  "timestamp": { "type": "string" },
+                  "kind": { "enum": ["commentary", "tool", "approval", "final"] },
+                  "phase": { "enum": ["running", "completed", "waiting", "delivered"] },
+                  "label": { "type": "string", "maxLength": 180 },
+                  "content": { "type": ["string", "null"], "maxLength": 4000 }
+                },
+                "additionalProperties": false
+              }
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "actionEnvelope": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "properties": {
+            "type": { "const": "action" },
+            "payload": {
+              "type": "object",
+              "required": ["action"],
+              "properties": {
+                "action": { "enum": ["next", "next_project", "previous_project", "select_project", "usage", "usage_next", "clear", "approve", "reject"] },
+                "target_id": { "type": ["string", "null"] }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+    "actionResultEnvelope": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "properties": {
+            "type": { "const": "action_result" },
+            "payload": {
+              "type": "object",
+              "required": ["accepted", "action"],
+              "properties": {
+                "accepted": { "type": "boolean" },
+                "action": { "enum": ["next", "next_project", "previous_project", "select_project", "usage", "usage_next", "clear", "approve", "reject"] }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+    "errorEnvelope": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        {
+          "properties": {
+            "type": { "const": "error" },
+            "payload": {
+              "type": "object",
+              "required": ["code", "message"],
+              "properties": {
+                "code": { "type": "string" },
+                "message": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
+      ]
+    },
+    "pingEnvelope": {
+      "allOf": [
+        { "$ref": "#/$defs/envelope" },
+        { "properties": { "type": { "enum": ["ping", "pong"] } } }
+      ]
+    }
+  }
+}
