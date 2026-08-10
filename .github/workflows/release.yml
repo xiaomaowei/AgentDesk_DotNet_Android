@@ -72,8 +72,10 @@ jobs:
 
       - name: Run .NET Solution Tests
         shell: pwsh
+        env:
+          VSTEST_CONNECTION_TIMEOUT: 180
         run: |
-          dotnet test windows/AgentDesk.sln -c Release --nologo --verbosity quiet
+          dotnet test windows/AgentDesk.sln -c Release --nologo --verbosity quiet -m:1
 
       - name: Publish Windows Binaries
         shell: pwsh
