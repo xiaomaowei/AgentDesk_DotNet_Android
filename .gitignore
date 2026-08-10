@@ -38,8 +38,10 @@ __pycache__/
 Thumbs.db
 Desktop.ini
 
-# Logs & Secrets
+# Logs, Secrets & Release Packages
 *.log
 *.env
 *.env.local
+*.zip
+SHA256SUMS.txt
 output/

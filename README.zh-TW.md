@@ -92,11 +92,9 @@ AgentDesk (.NET & Android) 由以下四個核心層次組成：
 ## 🚀 環境要求與使用說明
 
 ### 前置需求
-- **.NET 8 SDK / Desktop Runtime**：
-  - 從原始碼建置或執行 `dotnet run` 需要 **.NET 8 SDK**。
-  - 僅執行已發布之框架相依 `AgentDesk.Desktop.exe` 需要 **.NET 8 Desktop Runtime**。
+- **.NET 8 SDK**：從原始碼建置或執行 `dotnet run` 需要 **.NET 8 SDK**。（GitHub Release 下載之 `AgentDesk-Windows-vX.Y.Z-win-x64.zip` 為免安裝自包含 Self-contained 包，目標機器無需安裝 .NET Runtime）。
 - **Android SDK & platform-tools** (`adb.exe` 需在 `PATH`、`ANDROID_HOME`、`ANDROID_SDK_ROOT` 或 `%LOCALAPPDATA%\Android\Sdk\platform-tools`)。
-- **Node.js (v18+) & npm** (用於 `web-ui` 開發與產出靜態資源)。
+- **Node.js (20.19+) & npm** (用於 `web-ui` 開發與產出靜態資源)。
 - **JDK 17+** (用於 Android APK 編譯)。
 
 ### 常用指令
@@ -143,6 +141,50 @@ dotnet test windows/AgentDesk.sln --configuration Release --no-build
 > **驗證狀態說明**：
 > - **合成 Hook 驗證**：先前手動 CLI 呼叫（`AgentDesk.Hook.exe` 觸發合成 `UserPromptSubmit`）已作為早期低層級測試通過驗收。
 > - **真實任務自動驗證 (2026-08-10)**：已於 Samsung Galaxy S23 (SM-S9110 / RFCW607NEMH) 實機完成真實自動生命週期轉發驗證。已配置全部 7 個 Hook，且於真實 Codex CLI v0.147.0 任務中成功自動觸發 5 個生命週期事件（`SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PostToolUse`、`Stop`）。Server 狀態依序演進 `commentary:delivered` -> `tool:running` -> `tool:completed` -> `final:delivered` 並包含 Token 數，Android `SharedPreferences` 亦獨立觀察並確認手機可見欄位：`Prompt=true`、`Commentary=true`、`CompletedTool=true`、`Final=true`、`Tokens=true`（`PermissionRequest` 與自動 `SessionEnd` 已配置但本次未執行）。
+
+---
+
+## 📦 Release 與自動化發布流程
+
+AgentDesk 使用 GitHub Actions (`.github/workflows/release.yml`) 進行自動化編譯、測試、打包與 Release 發布。每當推送符合根目錄 `VERSION` 檔案版本的 Tag（格式為 `vX.Y.Z`）時，系統會自動觸發此工作流程。
+
+### GitHub Release 發布資產 (Assets)
+每次觸發會產出三個發布檔案：
+1. `AgentDesk-Windows-vX.Y.Z-win-x64.zip`: 免安裝自包含 (Self-contained) 64 位元 Windows 可執行檔 (`AgentDesk.Desktop.exe` 與 `AgentDesk.Hook.exe`)。
+2. `AgentDesk-Android-vX.Y.Z.apk`: 已簽署之 Release 版 Android APK（內建完整 `web-ui` H5 靜態資源）。
+3. `SHA256SUMS.txt`: SHA-256 校驗碼檔案，用於驗證資產完整性。
+
+### 目標機器安裝與使用流程
+1. **Windows 部署**:
+   - 複製 (Clone) 本 Repository。
+   - 自 GitHub Release 下載 `AgentDesk-Windows-vX.Y.Z-win-x64.zip`。
+   - 將 ZIP 直接解壓縮至專案根目錄，這會自動建立：
+     - `windows/artifacts/AgentDesk.Desktop-win-x64/`
+     - `windows/artifacts/AgentDesk.Hook-win-x64/`
+   - 啟動 `windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`。
+2. **Android 部署**:
+   - 自同一個 GitHub Release 下載 `AgentDesk-Android-vX.Y.Z.apk`。
+   - 安裝 APK 至 Android 裝置（例如執行 `adb install AgentDesk-Android-vX.Y.Z.apk`）。
+   - 透過 USB 連接裝置並確認已開啟 ADB Reverse 通道 (`adb reverse tcp:8765 tcp:8765`)。
+
+### 觸發發布指令
+欲發布新版本時：
+1. 更新根目錄 `VERSION`（例如 `0.1.0`）。
+2. 建立並推送相對應之 Git Tag：
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+> **注意**：Workflow 會嚴格驗證 Tag 是否完全符合 `v` + `VERSION`。若版本不符，將在編譯發布前直接中斷並回報失敗。
+
+### Android Release 簽署金鑰設定
+請於 GitHub Repository Secrets（`Settings -> Secrets and variables -> Actions`）設定以下密鑰：
+- `ANDROID_KEYSTORE_BASE64`: 簽署金鑰檔 (`.keystore` / `.jks`) 之 Base64 編碼字串。
+- `ANDROID_KEYSTORE_PASSWORD`: Keystore 密碼。
+- `ANDROID_KEY_ALIAS`: 金鑰別名 (Alias)。
+- `ANDROID_KEY_PASSWORD`: 金鑰密碼。
+
+> **注意**：全數四項簽署 Secrets 皆為必填。若缺少任何一項 Secrets，Release 工作流程將直接中斷並宣告失敗，絕不發布未簽署之 APK。
 
 ---
 

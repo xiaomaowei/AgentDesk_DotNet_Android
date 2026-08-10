@@ -1,5 +1,7 @@
 [CmdletBinding()]
-param()
+param(
+    [switch]$SelfContained = $true
+)
 
 $ErrorActionPreference = 'Stop'
 
@@ -17,15 +19,15 @@ $desktopOutputDir = Join-Path $scriptDir "windows\artifacts\AgentDesk.Desktop-wi
 $hookProject = Join-Path $scriptDir "windows\AgentDesk.Hook\AgentDesk.Hook.csproj"
 $hookOutputDir = Join-Path $scriptDir "windows\artifacts\AgentDesk.Hook-win-x64"
 
-Write-Host "Publishing AgentDesk.Desktop (framework-dependent win-x64)..." -ForegroundColor Cyan
-dotnet publish $desktopProject -c Release -r win-x64 --self-contained false -o $desktopOutputDir
+Write-Host "Publishing AgentDesk.Desktop (win-x64 self-contained: $SelfContained)..." -ForegroundColor Cyan
+dotnet publish $desktopProject -c Release -r win-x64 --self-contained $SelfContained -o $desktopOutputDir
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to publish AgentDesk.Desktop"
     exit $LASTEXITCODE
 }
 
-Write-Host "Publishing AgentDesk.Hook (framework-dependent win-x64)..." -ForegroundColor Cyan
-dotnet publish $hookProject -c Release -r win-x64 --self-contained false -o $hookOutputDir
+Write-Host "Publishing AgentDesk.Hook (win-x64 self-contained: $SelfContained)..." -ForegroundColor Cyan
+dotnet publish $hookProject -c Release -r win-x64 --self-contained $SelfContained -o $hookOutputDir
 if ($LASTEXITCODE -ne 0) {
     Write-Error "Failed to publish AgentDesk.Hook"
     exit $LASTEXITCODE
