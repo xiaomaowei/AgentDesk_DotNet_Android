@@ -37,6 +37,29 @@ export function normalizeRefreshText(raw: string | null | undefined): string {
 }
 
 /**
+ * Normalizes reset text or date for Codex display into "Re: <date-time>".
+ * Strips legacy prefixes such as "Resets", "Reset", "Refreshes in", "Refreshes", "Re:".
+ * Ensures no "Reset" or "Resets" word remains in output.
+ */
+export function normalizeCodexReText(resetText?: string | null, resetDate?: string | null): string {
+  const raw = (resetText && resetText.trim()) || (resetDate && resetDate.trim()) || '';
+  if (!raw) return '';
+
+  let rest = raw;
+  if (/^resets?\s+/i.test(rest)) {
+    rest = rest.replace(/^resets?\s+/i, '');
+  } else if (/^refreshes\s+in\s+/i.test(rest)) {
+    rest = rest.replace(/^refreshes\s+in\s+/i, '');
+  } else if (/^refreshes\s+/i.test(rest)) {
+    rest = rest.replace(/^refreshes\s+/i, '');
+  } else if (/^re:\s*/i.test(rest)) {
+    rest = rest.replace(/^re:\s*/i, '');
+  }
+  rest = rest.trim();
+  return rest ? `Re: ${rest}` : '';
+}
+
+/**
  * Convert a usage percentage (0–100) to an HSL color string for continuous
  * color feedback:
  *   0%   → red   (hue   0)

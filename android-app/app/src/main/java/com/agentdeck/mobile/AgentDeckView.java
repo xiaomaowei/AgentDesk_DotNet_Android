@@ -867,7 +867,12 @@ public final class AgentDeckView extends FrameLayout {
             int stroke = selected ? BORDER_FOCUS : BORDER;
             card.setBackground(createRippleButtonDrawable(bg, Color.argb(40, 255, 255, 255), stroke, 10));
 
-            card.setContentDescription("專案：" + p.project + "，狀態：" + p.statusLabel() + (selected ? "，已選取" : "，未選取"));
+            String conversation = p.conversation == null ? "" : p.conversation.trim();
+            boolean hasConversation = !conversation.isEmpty();
+            card.setContentDescription("專案：" + p.project
+                    + (hasConversation ? "，對話：" + conversation : "")
+                    + "，狀態：" + p.statusLabel()
+                    + (selected ? "，已選取" : "，未選取"));
 
             card.setOnClickListener(v -> {
                 setPendingAction("select_project");
@@ -902,11 +907,12 @@ public final class AgentDeckView extends FrameLayout {
 
             TextView tvStat = new TextView(getContext());
             tvStat.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
-            tvStat.setText(p.statusLabel());
+            tvStat.setText(conversation);
             tvStat.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f);
             tvStat.setTextColor(TEXT_MUTED);
             tvStat.setMaxLines(1);
             tvStat.setEllipsize(TextUtils.TruncateAt.END);
+            tvStat.setVisibility(hasConversation ? VISIBLE : GONE);
             col.addView(tvStat);
 
             card.addView(col, lpCol);

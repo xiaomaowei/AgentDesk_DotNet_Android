@@ -6,6 +6,7 @@ namespace AgentDesk.Desktop;
 public class TrayApplicationContext : ApplicationContext
 {
     private readonly NotifyIcon _notifyIcon;
+    private readonly Icon? _trayIcon;
     private readonly ToolStripMenuItem _statusMenuItem;
     private readonly ToolStripMenuItem _restartMenuItem;
     private readonly ToolStripMenuItem _launchMenuItem;
@@ -58,9 +59,11 @@ public class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_exitMenuItem);
 
+        _trayIcon = LoadTrayIcon();
+
         _notifyIcon = new NotifyIcon
         {
-            Icon = SystemIcons.Application,
+            Icon = _trayIcon,
             Text = "AgentDesk Desktop",
             ContextMenuStrip = menu,
             Visible = true
@@ -387,13 +390,7 @@ public class TrayApplicationContext : ApplicationContext
         {
         }
 
-        try
-        {
-            _notifyIcon.Dispose();
-        }
-        catch
-        {
-        }
+        DisposeTrayIcons();
 
         try
         {
@@ -406,6 +403,29 @@ public class TrayApplicationContext : ApplicationContext
         try
         {
             _cts.Dispose();
+        }
+        catch
+        {
+        }
+    }
+
+    private int _trayIconsDisposed;
+
+    private void DisposeTrayIcons()
+    {
+        if (Interlocked.Exchange(ref _trayIconsDisposed, 1) != 0) return;
+
+        try
+        {
+            _notifyIcon.Dispose();
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            _trayIcon?.Dispose();
         }
         catch
         {
@@ -454,5 +474,40 @@ public class TrayApplicationContext : ApplicationContext
         {
             base.ExitThreadCore();
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            DisposeTrayIcons();
+        }
+        base.Dispose(disposing);
+    }
+
+    private static Icon? LoadTrayIcon()
+    {
+        try
+        {
+            var assembly = typeof(TrayApplicationContext).Assembly;
+            using var stream = assembly.GetManifestResourceStream("AgentDesk.Desktop.Assets.AgentDesk.ico");
+            if (stream != null)
+            {
+                using var loadedIcon = new Icon(stream);
+                return (Icon)loadedIcon.Clone();
+            }
+
+            var filePath = Path.Combine(AppContext.BaseDirectory, "Assets", "AgentDesk.ico");
+            if (File.Exists(filePath))
+            {
+                return new Icon(filePath);
+            }
+        }
+        catch
+        {
+            // Tolerate resource-load failure
+        }
+
+        return null;
     }
 }

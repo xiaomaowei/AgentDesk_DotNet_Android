@@ -41,8 +41,34 @@ public final class LayoutPolicyHelper {
         if (usage == null || usage.weeklyRemainingPercent == null) {
             return "--";
         }
-        String resetStr = (usage.resetText != null && !usage.resetText.isBlank()) ? " (" + usage.resetText + ")" : "";
-        return usage.weeklyRemainingPercent + "%" + resetStr;
+        String reText = getNormalizedCodexReText(usage.resetText, usage.resetDate);
+        if (reText.isEmpty()) {
+            return usage.weeklyRemainingPercent + "%/1W";
+        }
+        return usage.weeklyRemainingPercent + "%/1W " + reText;
+    }
+
+    static String getNormalizedCodexReText(String resetText, String resetDate) {
+        String raw = (resetText != null && !resetText.isBlank()) ? resetText.trim() : (resetDate != null ? resetDate.trim() : "");
+        if (raw.isEmpty()) return "";
+
+        String lower = raw.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("resets ")) {
+            raw = raw.substring(7).trim();
+        } else if (lower.startsWith("reset ")) {
+            raw = raw.substring(6).trim();
+        } else if (lower.startsWith("refreshes in ")) {
+            raw = raw.substring(13).trim();
+        } else if (lower.startsWith("refreshes ")) {
+            raw = raw.substring(10).trim();
+        }
+
+        lower = raw.toLowerCase(Locale.ROOT);
+        if (lower.startsWith("re:")) {
+            raw = raw.substring(3).trim();
+        }
+
+        return raw.isEmpty() ? "" : "Re: " + raw;
     }
 
     /**

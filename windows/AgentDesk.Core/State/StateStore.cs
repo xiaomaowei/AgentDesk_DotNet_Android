@@ -11,11 +11,31 @@ public class StateStore
     private readonly Dictionary<string, string> _projectKeys = new();
     private readonly List<string> _projectOrder = new();
     private string? _activeKey;
+    private CodexUsagePayload? _currentCodexUsage;
+    private AntigravityUsagePayload? _currentAntigravityUsage;
+
+    public void SetUsageSnapshots(CodexUsagePayload? codexUsage, AntigravityUsagePayload? antigravityUsage)
+    {
+        lock (_lock)
+        {
+            _currentCodexUsage = codexUsage;
+            _currentAntigravityUsage = antigravityUsage;
+
+            foreach (var state in _states.Values)
+            {
+                state.CodexUsage = _currentCodexUsage;
+                state.AntigravityUsage = _currentAntigravityUsage;
+            }
+        }
+    }
 
     public Task<AgentState> UpsertAsync(AgentState state)
     {
         lock (_lock)
         {
+            state.CodexUsage = _currentCodexUsage;
+            state.AntigravityUsage = _currentAntigravityUsage;
+
             if (string.IsNullOrEmpty(state.ProjectKey))
             {
                 return Task.FromResult(state);

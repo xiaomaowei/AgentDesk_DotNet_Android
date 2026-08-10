@@ -12,11 +12,20 @@ public record HookUpdate
 
 public class CodexTranslator
 {
+    private const int MaxConversationNameLength = 96;
+    private const string PromptSectionMarker = "## My request for Codex:";
     private readonly Dictionary<string, CurrentTurn> _currentTurns = new();
     private readonly Dictionary<string, List<string>> _modelHistory = new();
     private readonly Dictionary<string, string> _lastCommentaryId = new();
     private readonly LinkedList<string> _sessionLru = new();
     private readonly object _lock = new();
+    private readonly string _sessionIndexPath;
+
+    public CodexTranslator(string? sessionIndexPath = null)
+    {
+        _sessionIndexPath = sessionIndexPath
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".codex", "session_index.jsonl");
+    }
 
     public HookUpdate Translate(JsonElement eventElement)
     {
@@ -33,6 +42,7 @@ public class CodexTranslator
 
         string status = GetStatus(eventName);
         string message = GetMessage(eventName, eventElement);
+        string? conversationName = ResolveConversationName(sessionId, eventName, eventElement);
 
         lock (_lock)
         {
@@ -54,6 +64,7 @@ public class CodexTranslator
                 Agent = "codex",
                 SessionId = sessionId,
                 Project = project,
+                ConversationName = conversationName,
                 Status = status,
                 Message = message.Length > 180 ? message[..180] : message,
                 StartedAt = DateTimeOffset.UtcNow,
@@ -142,6 +153,110 @@ public class CodexTranslator
         "SessionEnd" => "Session ended",
         _ => $"Event {eventName}"
     };
+
+    private string? ResolveConversationName(string sessionId, string eventName, JsonElement el)
+    {
+        foreach (var propertyName in new[] { "conversation_title", "thread_name", "conversation_name" })
+        {
+            var name = NormalizeConversationName(GetStringProperty(el, propertyName));
+            if (name != null)
+            {
+                return name;
+            }
+        }
+
+        var indexedName = GetSessionIndexConversationName(sessionId);
+        if (indexedName != null)
+        {
+            return indexedName;
+        }
+
+        if (eventName != "UserPromptSubmit")
+        {
+            return null;
+        }
+
+        var prompt = GetStringProperty(el, "prompt");
+        if (prompt == null)
+        {
+            return null;
+        }
+
+        var markerIndex = prompt.IndexOf(PromptSectionMarker, StringComparison.OrdinalIgnoreCase);
+        var content = markerIndex >= 0 ? prompt[(markerIndex + PromptSectionMarker.Length)..] : prompt;
+        foreach (var rawLine in content.Split('\n'))
+        {
+            var line = rawLine.Trim();
+            if (line.Length == 0 || line.StartsWith("<image", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var imageIndex = line.IndexOf("<image", StringComparison.OrdinalIgnoreCase);
+            if (imageIndex >= 0)
+            {
+                line = line[..imageIndex].Trim();
+            }
+
+            if (line.Length > 0 && !line.StartsWith("# Files mentioned by the user:", StringComparison.OrdinalIgnoreCase))
+            {
+                return Truncate(line, MaxConversationNameLength);
+            }
+        }
+
+        return null;
+    }
+
+    private string? GetSessionIndexConversationName(string sessionId)
+    {
+        string[] lines;
+        try
+        {
+            lines = File.ReadAllLines(_sessionIndexPath);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+
+        for (var index = lines.Length - 1; index >= 0; index--)
+        {
+            try
+            {
+                using var document = JsonDocument.Parse(lines[index]);
+                var record = document.RootElement;
+                if (record.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var recordId = GetStringProperty(record, "id");
+                var recordSessionId = GetStringProperty(record, "session_id");
+                if (recordId != sessionId && recordSessionId != sessionId)
+                {
+                    continue;
+                }
+
+                var name = NormalizeConversationName(GetStringProperty(record, "thread_name"))
+                           ?? NormalizeConversationName(GetStringProperty(record, "title"));
+                if (name != null)
+                {
+                    return name;
+                }
+            }
+            catch (JsonException)
+            {
+                // Ignore malformed JSONL records and continue searching older entries.
+            }
+        }
+
+        return null;
+    }
+
+    private static string? NormalizeConversationName(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? null : Truncate(value.Trim(), MaxConversationNameLength);
+    }
 
     private static string FormatToolLabel(JsonElement el, string prefix)
     {

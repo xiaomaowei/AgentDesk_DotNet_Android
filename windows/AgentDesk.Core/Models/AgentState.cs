@@ -20,6 +20,8 @@ public record AgentState
     public List<string> Actions { get; set; } = new();
     public string? TargetId { get; set; }
     public List<string> Models { get; set; } = new();
+    public CodexUsagePayload? CodexUsage { get; set; }
+    public AntigravityUsagePayload? AntigravityUsage { get; set; }
     public CurrentTurn? CurrentTurn { get; set; }
 
     public string Id { get; set; } = $"evt_{Guid.NewGuid():n}";
@@ -53,6 +55,8 @@ public record AgentState
                 Content = e.Content != null && e.Content.Length > 1600 ? e.Content[..1600] : e.Content
             }).ToList() : null,
             Models = Models.Count > 0 ? Models.Take(8).ToList() : null,
+            CodexUsage = CodexUsage,
+            AntigravityUsage = AntigravityUsage,
             CurrentTurn = CurrentTurn != null ? new CurrentTurn
             {
                 Id = CurrentTurn.Id,

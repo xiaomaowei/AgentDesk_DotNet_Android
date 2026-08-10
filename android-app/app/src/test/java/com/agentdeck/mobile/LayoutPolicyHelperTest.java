@@ -41,9 +41,13 @@ public final class LayoutPolicyHelperTest {
         assertEquals("--", LayoutPolicyHelper.formatCodexHeader(null, false));
         assertEquals("--", LayoutPolicyHelper.formatCodexHeader(null, true));
 
-        DashboardState.CodexUsage cu = new DashboardState.CodexUsage(85, "8/12 18:00", "8/12", 0);
-        assertEquals("85% (8/12 18:00)", LayoutPolicyHelper.formatCodexHeader(cu, false));
-        assertEquals("85% (8/12 18:00)", LayoutPolicyHelper.formatCodexHeader(cu, true));
+        DashboardState.CodexUsage cu = new DashboardState.CodexUsage(41, "Re: 8/16 18:00", "8/16 18:00", 0);
+        assertEquals("41%/1W Re: 8/16 18:00", LayoutPolicyHelper.formatCodexHeader(cu, false));
+        assertEquals("41%/1W Re: 8/16 18:00", LayoutPolicyHelper.formatCodexHeader(cu, true));
+
+        // Legacy format normalization test
+        DashboardState.CodexUsage cuLegacy = new DashboardState.CodexUsage(85, "Resets 8/12 18:00", "8/12 18:00", 0);
+        assertEquals("85%/1W Re: 8/12 18:00", LayoutPolicyHelper.formatCodexHeader(cuLegacy, false));
     }
 
     @Test
@@ -166,6 +170,32 @@ public final class LayoutPolicyHelperTest {
                 null, "disabled"
         );
         assertEquals("Ge 95%/5H - Re:10m 。 Cl disabled/5H",
+                LayoutPolicyHelper.formatAntigravityHeader(au, false));
+    }
+
+    @Test
+    public void testAntigravityHeaderGeminiDisabled() {
+        DashboardState.AntigravityUsage au = new DashboardState.AntigravityUsage(
+                50, "Refreshes in 5d",
+                95, "Refreshes in 10m",
+                null, "disabled",
+                78.1, "Refreshes in 1h 32m"
+        );
+        assertEquals("Ge disabled/5H 。 Cl 78.1%/5H - Re:1h32m",
+                LayoutPolicyHelper.formatAntigravityHeader(au, false));
+    }
+
+    @Test
+    public void testAntigravityHeaderMissingProviderNotDisabled() {
+        // Gemini present, Claude missing (refresh text is empty, percent is null)
+        DashboardState.AntigravityUsage au = new DashboardState.AntigravityUsage(
+                50, "Refreshes in 5d",
+                95, "Refreshes in 10m",
+                95.0, "Refreshes in 10m",
+                null, ""
+        );
+        // Claude block is not rendered and NOT shown as disabled
+        assertEquals("Ge 95%/5H - Re:10m",
                 LayoutPolicyHelper.formatAntigravityHeader(au, false));
     }
 }

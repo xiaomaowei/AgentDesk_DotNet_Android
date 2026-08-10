@@ -180,6 +180,35 @@ describe('Header & Format Logic Tests', () => {
       expect(screen.queryByText(/Claude/)).not.toBeInTheDocument();
     });
 
+    test('renders Gemini disabled state as exact visible text "Gemini disabled/5H"', () => {
+      const payload: StatePayload = {
+        agent: 'antigravity',
+        project: 'Test',
+        status: 'idle',
+        message: 'ready',
+        elapsed: 0,
+        requires_action: false,
+        actions: [],
+        target_id: null,
+        conversation_tokens: 100,
+        antigravity_usage: {
+          weekly_remaining_percent: 50,
+          weekly_refresh_text: '',
+          five_hour_remaining_percent: 95,
+          five_hour_refresh_text: 'Refreshes in 10m',
+          gemini_five_hour_remaining_percent: null,
+          gemini_five_hour_refresh_text: 'disabled',
+          claude_five_hour_remaining_percent: 78.19,
+          claude_five_hour_refresh_text: 'Refreshes in 1h 32m',
+        },
+      };
+
+      render(<Header connected={true} activePayload={payload} />);
+
+      expect(screen.getByText('Gemini disabled/5H')).toBeInTheDocument();
+      expect(screen.queryByText(/Gemini 0%/)).not.toBeInTheDocument();
+    });
+
     test('Codex, Gemini, and Claude usage-value spans each receive color computed from their percent', () => {
       const payload: StatePayload = {
         agent: 'antigravity',
@@ -193,8 +222,8 @@ describe('Header & Format Logic Tests', () => {
         conversation_tokens: 100,
         codex_usage: {
           weekly_remaining_percent: 100,
-          reset_text: '',
-          reset_date: '',
+          reset_text: 'Re: 8/16 18:00',
+          reset_date: '8/16 18:00',
           reset_available: 0,
         },
         antigravity_usage: {
@@ -211,26 +240,20 @@ describe('Header & Format Logic Tests', () => {
 
       render(<Header connected={true} activePayload={payload} />);
 
-      // JSDOM normalizes HSL to RGB in computed/attribute style.
-      // Assert that each usage span has a non-default color set (confirming
-      // usageColor() was applied), and that Codex/Gemini/Claude colours differ
-      // (red vs yellow vs green correspond to 0%, 50%, 100%).
       const codexSpan = screen.getByText(/100%/).closest('span');
       const geminiSpan = screen.getByText(/Gemini 50%\/5H/).closest('span');
       const claudeSpan = screen.getByText(/Claude 0%\/5H/).closest('span');
 
-      // Each span must have an inline color style applied
       expect(codexSpan?.style.color).toBeTruthy();
       expect(geminiSpan?.style.color).toBeTruthy();
       expect(claudeSpan?.style.color).toBeTruthy();
 
-      // All three colors must be distinct (0%, 50%, 100% produce different hues)
       expect(codexSpan?.style.color).not.toBe(geminiSpan?.style.color);
       expect(geminiSpan?.style.color).not.toBe(claudeSpan?.style.color);
       expect(codexSpan?.style.color).not.toBe(claudeSpan?.style.color);
     });
 
-    test('renders compact Codex usage', () => {
+    test('renders Codex usage as "<percent>%/1W Re: <local reset date and time>" with no Reset/Resets word', () => {
       const payload: StatePayload = {
         agent: 'codex',
         project: 'Test',
@@ -242,15 +265,17 @@ describe('Header & Format Logic Tests', () => {
         target_id: null,
         conversation_tokens: 100,
         codex_usage: {
-          weekly_remaining_percent: 85.5,
-          reset_text: 'Refreshes in 12h',
-          reset_date: '2026-08-09',
+          weekly_remaining_percent: 41,
+          reset_text: 'Re: 8/16 18:00',
+          reset_date: '8/16 18:00',
           reset_available: 1,
         },
       };
 
-      render(<Header connected={true} activePayload={payload} />);
-      expect(screen.getByText('85.5% · Re:12h')).toBeInTheDocument();
+      const { container } = render(<Header connected={true} activePayload={payload} />);
+      const codexEl = screen.getByText('41%/1W Re: 8/16 18:00');
+      expect(codexEl).toBeInTheDocument();
+      expect(container).not.toHaveTextContent(/Reset/i);
     });
   });
 

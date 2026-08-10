@@ -33,6 +33,179 @@ public class CodexTranslatorLifecycleTests
         Assert.Equal("Build feature X", update.State.CurrentTurn.Prompt);
     }
 
+    [Theory]
+    [InlineData("conversation_name")]
+    [InlineData("conversation_title")]
+    [InlineData("thread_name")]
+    public void Translate_ConversationName_AcceptsSupportedAliases(string propertyName)
+    {
+        var translator = CreateTranslatorWithoutSessionIndex();
+        using var doc = JsonDocument.Parse($$"""{"hook_event_name":"UserPromptSubmit","session_id":"s1","{{propertyName}}":"  Conversation title  "}""");
+
+        var update = translator.Translate(doc.RootElement);
+
+        Assert.Equal("Conversation title", update.State.ConversationName);
+    }
+
+    [Fact]
+    public void Translate_ConversationName_FallsBackPastBlankCandidates()
+    {
+        var translator = CreateTranslatorWithoutSessionIndex();
+        using var doc = JsonDocument.Parse("""{"hook_event_name":"UserPromptSubmit","session_id":"s1","conversation_name":" ","conversation_title":"\t","thread_name":"  Fallback title  "}""");
+
+        var update = translator.Translate(doc.RootElement);
+
+        Assert.Equal("Fallback title", update.State.ConversationName);
+    }
+
+    [Fact]
+    public void Translate_ConversationName_TrimsAndLimitsTo96Characters()
+    {
+        var title = new string('a', 100);
+        var translator = CreateTranslatorWithoutSessionIndex();
+        using var doc = JsonDocument.Parse($$"""{"hook_event_name":"UserPromptSubmit","session_id":"s1","conversation_name":"  {{title}}  "}""");
+
+        var update = translator.Translate(doc.RootElement);
+
+        Assert.Equal(new string('a', 96), update.State.ConversationName);
+    }
+
+    [Fact]
+    public void Translate_ConversationName_PrefersDirectFieldsOverOtherSources()
+    {
+        var indexPath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(indexPath, """{"id":"s1","thread_name":"Indexed title"}""");
+            var translator = new CodexTranslator(indexPath);
+            using var doc = JsonDocument.Parse("""{"hook_event_name":"UserPromptSubmit","session_id":"s1","conversation_name":"Legacy","thread_name":"Thread","conversation_title":"Direct title","prompt":"Prompt title"}""");
+
+            var update = translator.Translate(doc.RootElement);
+
+            Assert.Equal("Direct title", update.State.ConversationName);
+        }
+        finally
+        {
+            File.Delete(indexPath);
+        }
+    }
+
+    [Fact]
+    public void Translate_ConversationName_UsesNewestMatchingSessionIndexRecord()
+    {
+        var indexPath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(indexPath, """
+            {"id":"s1","thread_name":"Older title"}
+            {"session_id":"s1","title":"Newest title"}
+            """);
+            var translator = new CodexTranslator(indexPath);
+            using var doc = JsonDocument.Parse("""{"hook_event_name":"PreToolUse","session_id":"s1","tool_name":"exec"}""");
+
+            var update = translator.Translate(doc.RootElement);
+
+            Assert.Equal("Newest title", update.State.ConversationName);
+        }
+        finally
+        {
+            File.Delete(indexPath);
+        }
+    }
+
+    [Theory]
+    [InlineData("thread_name", "Thread alias")]
+    [InlineData("title", "Title alias")]
+    public void Translate_ConversationName_AcceptsSessionIndexTitleAliases(string propertyName, string expectedName)
+    {
+        var indexPath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(indexPath, $$"""{"id":"s1","{{propertyName}}":"{{expectedName}}"}""");
+            var translator = new CodexTranslator(indexPath);
+            using var doc = JsonDocument.Parse("""{"hook_event_name":"PreToolUse","session_id":"s1","tool_name":"exec"}""");
+
+            var update = translator.Translate(doc.RootElement);
+
+            Assert.Equal(expectedName, update.State.ConversationName);
+        }
+        finally
+        {
+            File.Delete(indexPath);
+        }
+    }
+
+    [Fact]
+    public void Translate_ConversationName_SkipsInvalidAndUnmatchedSessionIndexRecords()
+    {
+        var indexPath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(indexPath, """
+            not json
+            {"id":"other","thread_name":"Wrong session"}
+            {"session_id":"s1","title":"Matched title"}
+            """);
+            var translator = new CodexTranslator(indexPath);
+            using var doc = JsonDocument.Parse("""{"hook_event_name":"PreToolUse","session_id":"s1","tool_name":"exec"}""");
+
+            var update = translator.Translate(doc.RootElement);
+
+            Assert.Equal("Matched title", update.State.ConversationName);
+        }
+        finally
+        {
+            File.Delete(indexPath);
+        }
+    }
+
+    [Fact]
+    public void Translate_ConversationName_PrefersSessionIndexOverPromptFallback()
+    {
+        var indexPath = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(indexPath, """{"id":"s1","thread_name":"Indexed title"}""");
+            var translator = new CodexTranslator(indexPath);
+            using var doc = JsonDocument.Parse("""{"hook_event_name":"UserPromptSubmit","session_id":"s1","prompt":"Prompt title"}""");
+
+            var update = translator.Translate(doc.RootElement);
+
+            Assert.Equal("Indexed title", update.State.ConversationName);
+        }
+        finally
+        {
+            File.Delete(indexPath);
+        }
+    }
+
+    [Fact]
+    public void Translate_ConversationName_UsesPromptFallbackAfterAttachmentMetadata()
+    {
+        var translator = CreateTranslatorWithoutSessionIndex();
+        using var doc = JsonDocument.Parse("""{"hook_event_name":"UserPromptSubmit","session_id":"s1","prompt":"# Files mentioned by the user:\n\n## photo.jpg: C:/Temp/photo.jpg\n\n## My request for Codex:\n\nActual request <image name=[Image #1] path=\"C:/Temp/photo.jpg\">"}""");
+
+        var update = translator.Translate(doc.RootElement);
+
+        Assert.Equal("Actual request", update.State.ConversationName);
+    }
+
+    [Fact]
+    public void Translate_ConversationName_DoesNotUsePromptFallbackForOtherEvents()
+    {
+        var translator = CreateTranslatorWithoutSessionIndex();
+        using var doc = JsonDocument.Parse("""{"hook_event_name":"PreToolUse","session_id":"s1","prompt":"Prompt title","tool_name":"exec"}""");
+
+        var update = translator.Translate(doc.RootElement);
+
+        Assert.Null(update.State.ConversationName);
+    }
+
+    private static CodexTranslator CreateTranslatorWithoutSessionIndex()
+    {
+        return new CodexTranslator(Path.Combine(Path.GetTempPath(), $"missing-session-index-{Guid.NewGuid():n}.jsonl"));
+    }
+
     [Fact]
     public void Translate_ToolAndApprovalLifecycle_TracksItemsAndSharedIds()
     {

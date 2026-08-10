@@ -1,6 +1,6 @@
 import React from 'react';
 import { StatePayload } from '../types/dashboard';
-import { formatDecimalPercent, normalizeRefreshText, usageColor } from '../utils/format';
+import { formatDecimalPercent, normalizeRefreshText, normalizeCodexReText, usageColor } from '../utils/format';
 
 import { RobotIcon } from './RobotIcon';
 
@@ -17,6 +17,10 @@ export const Header: React.FC<HeaderProps> = ({ connected, activePayload }) => {
   let geminiText: string | null = null;
   let geminiPercent: number | null = null;
   if (antigravityUsage) {
+    const isGeminiDisabled =
+      (antigravityUsage.gemini_five_hour_remaining_percent == null || antigravityUsage.gemini_five_hour_remaining_percent === undefined) &&
+      antigravityUsage.gemini_five_hour_refresh_text?.trim().toLowerCase() === 'disabled';
+
     if (antigravityUsage.gemini_five_hour_remaining_percent !== null && antigravityUsage.gemini_five_hour_remaining_percent !== undefined) {
       geminiPercent = antigravityUsage.gemini_five_hour_remaining_percent;
       const pct = formatDecimalPercent(geminiPercent);
@@ -25,6 +29,9 @@ export const Header: React.FC<HeaderProps> = ({ connected, activePayload }) => {
       if (ref) {
         geminiText += ` · ${ref}`;
       }
+    } else if (isGeminiDisabled) {
+      geminiText = 'Gemini disabled/5H';
+      geminiPercent = null;
     } else if (antigravityUsage.five_hour_remaining_percent !== null && antigravityUsage.five_hour_remaining_percent !== undefined) {
       geminiPercent = antigravityUsage.five_hour_remaining_percent;
       const pct = formatDecimalPercent(geminiPercent);
@@ -41,7 +48,7 @@ export const Header: React.FC<HeaderProps> = ({ connected, activePayload }) => {
   let claudePercent: number | null = null;
   if (antigravityUsage) {
     const isClaudeDisabled =
-      antigravityUsage.claude_five_hour_remaining_percent == null &&
+      (antigravityUsage.claude_five_hour_remaining_percent == null || antigravityUsage.claude_five_hour_remaining_percent === undefined) &&
       antigravityUsage.claude_five_hour_refresh_text?.trim().toLowerCase() === 'disabled';
 
     if (antigravityUsage.claude_five_hour_remaining_percent !== null && antigravityUsage.claude_five_hour_remaining_percent !== undefined) {
@@ -65,13 +72,11 @@ export const Header: React.FC<HeaderProps> = ({ connected, activePayload }) => {
     if (codexUsage.weekly_remaining_percent !== null && codexUsage.weekly_remaining_percent !== undefined) {
       codexPercent = codexUsage.weekly_remaining_percent;
       const pct = formatDecimalPercent(codexPercent);
-      const ref = normalizeRefreshText(codexUsage.reset_text);
-      codexText = `${pct}%`;
-      if (ref) {
-        codexText += ` · ${ref}`;
-      }
+      const reText = normalizeCodexReText(codexUsage.reset_text, codexUsage.reset_date);
+      codexText = `${pct}%/1W${reText ? ` ${reText}` : ''}`;
     } else if (codexUsage.reset_text) {
-      codexText = normalizeRefreshText(codexUsage.reset_text) || codexUsage.reset_text;
+      const reText = normalizeCodexReText(codexUsage.reset_text, codexUsage.reset_date);
+      codexText = reText || codexUsage.reset_text;
     }
   }
 

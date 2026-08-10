@@ -52,6 +52,14 @@ public record AgentStatePayload
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<string>? Models { get; init; }
 
+    [JsonPropertyName("codex_usage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CodexUsagePayload? CodexUsage { get; init; }
+
+    [JsonPropertyName("antigravity_usage")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public AntigravityUsagePayload? AntigravityUsage { get; init; }
+
     [JsonPropertyName("current_turn")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public CurrentTurn? CurrentTurn { get; init; }
