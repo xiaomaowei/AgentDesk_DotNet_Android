@@ -1,5 +1,7 @@
 # AgentDesk (.NET & Android)
 
+[English](README.md) · [繁體中文](README.zh-TW.md)
+
 An agentic task execution deck providing real-time status monitoring, interactive approvals, and desktop hook integration via a native Android app, H5 WebView, and a high-performance **pure .NET 8 Windows Bridge**.
 
 > **Project Status Notice**: This repository is the pure .NET 8 iteration of AgentDesk. The legacy Python bridge and ESP32 hardware firmware have been removed from this scope. Both the .NET 8 Windows Bridge and Samsung Galaxy S23 (SM-S9110) physical end-to-end (E2E) device acceptance are completed. The legacy repository (`AgentDesk`) remains as a reference and backup, but is no longer required as an unvalidated fallback. This repository serves as the primary home for ongoing development.
