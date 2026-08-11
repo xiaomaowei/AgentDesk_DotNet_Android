@@ -42,8 +42,7 @@ The Android app embeds the `web-ui` SPA inside an Android `WebView`. The H5 appl
 4. **Node.js (v18+) & npm**:
    - For building `web-ui` static assets copied into Android app assets.
 5. **.NET 8 SDK**:
-   - Building from source or running via `dotnet run` requires **.NET 8 SDK**.
-   - The self-contained GitHub Release (`AgentDesk-Windows-vX.Y.Z-win-x64.zip`) does not require .NET Runtime on the target PC.
+   - Required for building the Windows Bridge binaries from source (via `dotnet build` or `dotnet publish`) or running via `dotnet run`.
 
 > **Note on Transition Status**: The legacy Python bridge virtual environment (`.venv`) is deprecated and disabled. The host server is launched using the .NET 8 Windows Bridge (`windows/AgentDesk.Desktop` System Tray App or standalone `windows/AgentDesk.Server`). `AgentDesk.Desktop` natively manages ADB reverse tunnels (`tcp:8765 tcp:8765`) and app launches in .NET.
 

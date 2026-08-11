@@ -92,7 +92,7 @@ AgentDesk (.NET & Android) consists of four primary layers:
 ## 🚀 Setup & Usage
 
 ### Prerequisites
-- **.NET 8 SDK**: Required only for building from source or running via `dotnet run`. (The published Windows package `AgentDesk-Windows-vX.Y.Z-win-x64.zip` is self-contained and does not require .NET Runtime to be installed on target machines).
+- **.NET 8 SDK**: Required for building and publishing the Windows Bridge executables locally or running via `dotnet run`.
 - **Android SDK & platform-tools** (`adb.exe` in `PATH`, `ANDROID_HOME`, `ANDROID_SDK_ROOT`, or `%LOCALAPPDATA%\Android\Sdk\platform-tools`).
 - **Node.js (20.19+) & npm** (for `web-ui` development and building assets).
 - **JDK 17+** (for Android Gradle build).
@@ -144,47 +144,63 @@ To enable real automatic lifecycle event forwarding from Codex tasks to AgentDes
 
 ---
 
-## 📦 Automated GitHub Releases
+## 📦 Source-Only Local Build & Distribution
 
-AgentDesk uses GitHub Actions (`.github/workflows/release.yml`) to automatically build, test, package, and publish releases whenever a version tag `vX.Y.Z` (matching the root `VERSION` file) is pushed.
+This repository is distributed as **source-only**. Automated GitHub Actions release workflows and pre-built binaries have been removed. Users must clone the full repository and build both the Android APK and Windows executables locally.
 
-### GitHub Release Assets
-Each tag-triggered Release publishes three assets:
-1. `AgentDesk-Windows-vX.Y.Z-win-x64.zip`: Self-contained 64-bit Windows executables (`AgentDesk.Desktop.exe` and `AgentDesk.Hook.exe`).
-2. `AgentDesk-Android-vX.Y.Z.apk`: Release-signed native Android APK containing the embedded `web-ui` H5 assets.
-3. `SHA256SUMS.txt`: SHA-256 checksum file for verifying asset integrity.
+### 1. Repository Setup
+Clone the full repository before running any build commands:
+```bash
+git clone https://github.com/xiaomaowei/AgentDesk_DotNet_Android.git
+cd AgentDesk_DotNet_Android
+```
 
-### Installation Flow for Target Machine
-1. **Windows Setup**:
-   - Clone the repository.
-   - Download `AgentDesk-Windows-vX.Y.Z-win-x64.zip` from the GitHub Release.
-   - Extract the ZIP directly into the repository root directory. This creates:
-     - `windows/artifacts/AgentDesk.Desktop-win-x64/`
-     - `windows/artifacts/AgentDesk.Hook-win-x64/`
-   - Launch `windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`.
-2. **Android Setup**:
-   - Download `AgentDesk-Android-vX.Y.Z.apk` from the same GitHub Release.
-   - Install the APK on your Android device (e.g. `adb install AgentDesk-Android-vX.Y.Z.apk`).
-   - Connect the device via USB and ensure ADB reverse tunnel is active (`adb reverse tcp:8765 tcp:8765`).
+### 2. Building the Android Debug APK
+The Android Gradle configuration automatically packages the compiled `web-ui` H5 assets during build. Therefore, `web-ui` npm dependencies must be installed prior to running the Gradle build.
 
-### Triggering a Release
-To publish a release:
-1. Update `VERSION` (e.g. `0.1.0`).
-2. Create and push a matching Git tag:
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-> **Note**: The workflow verifies that the tag matches `v` + `VERSION`. Mismatched tags fail before build or publication.
+Run the following commands from the repository root:
 
-### Android Release Signing Secrets
-Configure the following Repository Secrets in GitHub (`Settings -> Secrets and variables -> Actions`):
-- `ANDROID_KEYSTORE_BASE64`: Base64-encoded string of your release `.keystore` / `.jks` file.
-- `ANDROID_KEYSTORE_PASSWORD`: Keystore password.
-- `ANDROID_KEY_ALIAS`: Key alias.
-- `ANDROID_KEY_PASSWORD`: Key password.
+```bash
+# 1. Install H5 UI dependencies required for asset synchronization
+npm --prefix web-ui ci
 
-> **Note**: All four signing secrets are strictly required. If any signing secret is missing, the release workflow will fail immediately and will never publish an unsigned APK.
+# 2. Build the Android Debug APK using Gradle
+# On Windows (PowerShell / CMD):
+.\android-app\gradlew.bat -p android-app :app:assembleDebug
+
+# On Linux / macOS:
+./android-app/gradlew -p android-app :app:assembleDebug
+```
+
+#### Android APK Output Path
+Upon successful completion, the compiled Debug APK will be located at:
+```
+android-app/app/build/outputs/apk/debug/app-debug.apk
+```
+
+> **Optional Signed Release Builds**: To produce a signed release APK locally, set your own keystore credentials (`ANDROID_KEYSTORE_PATH`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) as Gradle properties or environment variables (`ORG_GRADLE_PROJECT_*`), and run `.\android-app\gradlew.bat -p android-app :app:assembleRelease` (Windows) or `./android-app/gradlew -p android-app :app:assembleRelease` (Linux/macOS).
+
+### 3. Publishing Windows Binaries
+Publish self-contained 64-bit Windows executables for both **AgentDesk.Desktop** and **AgentDesk.Hook** using explicit `dotnet publish` commands:
+
+```powershell
+# Publish AgentDesk.Desktop (Release, win-x64, self-contained)
+dotnet publish windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release -r win-x64 --self-contained -o windows/artifacts/AgentDesk.Desktop-win-x64
+
+# Publish AgentDesk.Hook (Release, win-x64, self-contained)
+dotnet publish windows/AgentDesk.Hook/AgentDesk.Hook.csproj -c Release -r win-x64 --self-contained -o windows/artifacts/AgentDesk.Hook-win-x64
+```
+
+> **Convenience Wrapper Script**: You may also run `.\Publish-AgentDeskWindows.ps1`, which serves as an equivalent convenience wrapper executing these exact `dotnet publish` commands for both projects.
+
+#### Artifact Output Directories & Launch Requirements
+The deterministic artifact directories produced by the publish commands are:
+- **Desktop Host Executable**: `windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`
+- **Hook Executable**: `windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook.exe`
+
+> **Execution & Hook Setup Requirements**:
+> - Users must launch `AgentDesk.Desktop.exe` directly from its published artifact directory (`windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`).
+> - Both the **Desktop** (`AgentDesk.Desktop.exe`) and **Hook** (`AgentDesk.Hook.exe`) published artifacts are required for the tracked `.codex/hooks.json` integration to operate correctly.
 
 ---
 

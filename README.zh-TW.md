@@ -92,7 +92,7 @@ AgentDesk (.NET & Android) 由以下四個核心層次組成：
 ## 🚀 環境要求與使用說明
 
 ### 前置需求
-- **.NET 8 SDK**：從原始碼建置或執行 `dotnet run` 需要 **.NET 8 SDK**。（GitHub Release 下載之 `AgentDesk-Windows-vX.Y.Z-win-x64.zip` 為免安裝自包含 Self-contained 包，目標機器無需安裝 .NET Runtime）。
+- **.NET 8 SDK**：本機建置與發布 Windows Bridge 可執行檔或執行 `dotnet run` 所需。
 - **Android SDK & platform-tools** (`adb.exe` 需在 `PATH`、`ANDROID_HOME`、`ANDROID_SDK_ROOT` 或 `%LOCALAPPDATA%\Android\Sdk\platform-tools`)。
 - **Node.js (20.19+) & npm** (用於 `web-ui` 開發與產出靜態資源)。
 - **JDK 17+** (用於 Android APK 編譯)。
@@ -144,47 +144,63 @@ dotnet test windows/AgentDesk.sln --configuration Release --no-build
 
 ---
 
-## 📦 Release 與自動化發布流程
+## 📦 原始碼本機建置與發布說明
 
-AgentDesk 使用 GitHub Actions (`.github/workflows/release.yml`) 進行自動化編譯、測試、打包與 Release 發布。每當推送符合根目錄 `VERSION` 檔案版本的 Tag（格式為 `vX.Y.Z`）時，系統會自動觸發此工作流程。
+本 Repository 採**純原始碼 (Source-Only)** 方式散布。已移除 GitHub Actions 自動化 Release 工作流程與預編譯二進位檔案，使用者必須複製 (Clone) 完整的 Repository 並於本機自行編譯 Android APK 與發布 Windows 可執行檔。
 
-### GitHub Release 發布資產 (Assets)
-每次觸發會產出三個發布檔案：
-1. `AgentDesk-Windows-vX.Y.Z-win-x64.zip`: 免安裝自包含 (Self-contained) 64 位元 Windows 可執行檔 (`AgentDesk.Desktop.exe` 與 `AgentDesk.Hook.exe`)。
-2. `AgentDesk-Android-vX.Y.Z.apk`: 已簽署之 Release 版 Android APK（內建完整 `web-ui` H5 靜態資源）。
-3. `SHA256SUMS.txt`: SHA-256 校驗碼檔案，用於驗證資產完整性。
+### 1. 複製專案
+執行任何建置指令前，請先複製完整 Repository：
+```bash
+git clone https://github.com/xiaomaowei/AgentDesk_DotNet_Android.git
+cd AgentDesk_DotNet_Android
+```
 
-### 目標機器安裝與使用流程
-1. **Windows 部署**:
-   - 複製 (Clone) 本 Repository。
-   - 自 GitHub Release 下載 `AgentDesk-Windows-vX.Y.Z-win-x64.zip`。
-   - 將 ZIP 直接解壓縮至專案根目錄，這會自動建立：
-     - `windows/artifacts/AgentDesk.Desktop-win-x64/`
-     - `windows/artifacts/AgentDesk.Hook-win-x64/`
-   - 啟動 `windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`。
-2. **Android 部署**:
-   - 自同一個 GitHub Release 下載 `AgentDesk-Android-vX.Y.Z.apk`。
-   - 安裝 APK 至 Android 裝置（例如執行 `adb install AgentDesk-Android-vX.Y.Z.apk`）。
-   - 透過 USB 連接裝置並確認已開啟 ADB Reverse 通道 (`adb reverse tcp:8765 tcp:8765`)。
+### 2. 編譯 Android Debug APK
+Android Gradle 建置設定會在編譯過程中自動打包 `web-ui` H5 靜態資源，因此在執行 Gradle 編譯前，必須先安裝 `web-ui` 的 npm 相依套件。
 
-### 觸發發布指令
-欲發布新版本時：
-1. 更新根目錄 `VERSION`（例如 `0.1.0`）。
-2. 建立並推送相對應之 Git Tag：
-   ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
-   ```
-> **注意**：Workflow 會嚴格驗證 Tag 是否完全符合 `v` + `VERSION`。若版本不符，將在編譯發布前直接中斷並回報失敗。
+請於 Repository 根目錄執行以下指令：
 
-### Android Release 簽署金鑰設定
-請於 GitHub Repository Secrets（`Settings -> Secrets and variables -> Actions`）設定以下密鑰：
-- `ANDROID_KEYSTORE_BASE64`: 簽署金鑰檔 (`.keystore` / `.jks`) 之 Base64 編碼字串。
-- `ANDROID_KEYSTORE_PASSWORD`: Keystore 密碼。
-- `ANDROID_KEY_ALIAS`: 金鑰別名 (Alias)。
-- `ANDROID_KEY_PASSWORD`: 金鑰密碼。
+```bash
+# 1. 安裝 H5 UI 靜態資源同步所需的 npm 相依套件
+npm --prefix web-ui ci
 
-> **注意**：全數四項簽署 Secrets 皆為必填。若缺少任何一項 Secrets，Release 工作流程將直接中斷並宣告失敗，絕不發布未簽署之 APK。
+# 2. 透過 Gradle 編譯 Android Debug APK
+# Windows 環境 (PowerShell / CMD)：
+.\android-app\gradlew.bat -p android-app :app:assembleDebug
+
+# Linux / macOS 環境：
+./android-app/gradlew -p android-app :app:assembleDebug
+```
+
+#### Android APK 產出路徑
+編譯完成後，產出的 Debug APK 位於：
+```
+android-app/app/build/outputs/apk/debug/app-debug.apk
+```
+
+> **選用之本機 Release 簽署編譯**：若需於本機產出已簽署之 Release APK，請將您個人的 Keystore 憑證資訊（`ANDROID_KEYSTORE_PATH`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`）設定為 Gradle 屬性或環境變數（`ORG_GRADLE_PROJECT_*`），並執行 `.\android-app\gradlew.bat -p android-app :app:assembleRelease` (Windows) 或 `./android-app/gradlew -p android-app :app:assembleRelease` (Linux/macOS)。
+
+### 3. 發布 Windows 可執行檔
+請使用明確的 `dotnet publish` 指令發布 **AgentDesk.Desktop** 與 **AgentDesk.Hook** 的自包含 (Self-contained) 64 位元 Windows 可執行檔：
+
+```powershell
+# 發布 AgentDesk.Desktop (Release, win-x64, self-contained)
+dotnet publish windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release -r win-x64 --self-contained -o windows/artifacts/AgentDesk.Desktop-win-x64
+
+# 發布 AgentDesk.Hook (Release, win-x64, self-contained)
+dotnet publish windows/AgentDesk.Hook/AgentDesk.Hook.csproj -c Release -r win-x64 --self-contained -o windows/artifacts/AgentDesk.Hook-win-x64
+```
+
+> **便利封裝腳本**：您亦可執行 `.\Publish-AgentDeskWindows.ps1`，該腳本即會作為等效便利工具，自動執行上述兩條 `dotnet publish` 指令。
+
+#### Artifacts 產出目錄與執行需求
+發布指令產出的確定性 (Deterministic) 工件目錄如下：
+- **Desktop 主程式可執行檔**：`windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`
+- **Hook 工具可執行檔**：`windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook.exe`
+
+> **執行與 Hook 設定需求**：
+> - 使用者必須直接從發布產出的工件目錄中啟動 `AgentDesk.Desktop.exe` (`windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`)。
+> - 已追蹤之 `.codex/hooks.json` 設定需要 **Desktop** (`AgentDesk.Desktop.exe`) 與 **Hook** (`AgentDesk.Hook.exe`) 兩者的發布工件皆存在才能正常運作。
 
 ---
 
