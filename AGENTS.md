@@ -130,6 +130,18 @@ Keep the existing agy model routing and use the established model names:
 
 The model choice changes the implementation worker, not the contract owner. Codex still defines the scope, constraints, acceptance criteria, and review boundary for both models. A project-specific override may select the other existing agy model when repository evidence or task risk requires it.
 
+## agy PowerShell 7 invocation
+
+All agy commands, including availability checks, model discovery, and task dispatch, must be invoked through PowerShell 7 (`pwsh`).
+
+Codex must check agy availability via PowerShell 7 before declaring agy unavailable or activating fallback. Use a portable command such as:
+
+```powershell
+pwsh -Command "Get-Command agy"
+```
+
+Do not hard-code installation paths when checking or invoking agy.
+
 ## Codex Implementation Fallback
 
 Use Codex for implementation only after agy is confirmed unavailable because of missing tooling, authentication or session failure, transport failure, service outage, or repeated inability to accept work.
