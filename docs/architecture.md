@@ -82,9 +82,7 @@ This document describes the target architecture for the **pure .NET 8 Windows Br
 
 ### 5. `tests/` Test Suites (Target: `net8.0` / `net8.0-windows`)
 - **`AgentDesk.Core.Tests`**: Unit tests for domain models, protocol serialization, and state mutations.
-- **`AgentDesk.Server.Tests`**: Integration tests using `WebApplicationFactory<Program>` to test HTTP endpoints and approval workflows.
 - **`AgentDesk.Desktop.Tests`**: Unit tests for ADB device parsing, reverse tunnel detection, command runner plans, status formatting, and embedded server dynamic port lifecycle.
-- **`AgentDesk.Hook.Tests`**: Unit tests for CLI hook payload translation and execution.
 
 ---
 

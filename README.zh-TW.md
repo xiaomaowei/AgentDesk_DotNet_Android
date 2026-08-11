@@ -49,7 +49,7 @@ AgentDesk (.NET & Android) 由以下四個核心層次組成：
    - `AgentDesk.Server`: 輕量級 HTTP API Server，僅監聽 `127.0.0.1:8765`。
    - `AgentDesk.Desktop`: Windows 工作列圖示（System Tray）應用程式，負責內嵌 Server 生命週期、Android 啟動與原生 ADB Reverse 管理。
    - `AgentDesk.Hook`: 接收 Codex 或其他 Agent 鉤子回呼的 CLI/Bridge 介面 (`/api/v1/hooks/codex`)。
-   - `tests/`: Core、Server、Desktop 與 Hook 之單元與整合測試套件。
+   - `tests/`: Core 與 Desktop 專案的單元測試套件。
 2. **`android-app/`**: 原生 Android 應用程式，承載 WebView 並透過 ADB Reverse HTTP API 與 Windows Bridge 通訊。
 3. **`web-ui/`**: 嵌入於 Android WebView 的 React H5 控制面板，展示當前 Turn、步驟進度、Diff 比對與 Action 操作審核。
 4. **`protocol/`**: Protocol v1 協定規格、JSON Schema 與 Payload 範例。
@@ -84,9 +84,7 @@ AgentDesk (.NET & Android) 由以下四個核心層次組成：
     ├── AgentDesk.Hook/
     └── tests/
         ├── AgentDesk.Core.Tests/
-        ├── AgentDesk.Server.Tests/
-        ├── AgentDesk.Desktop.Tests/
-        └── AgentDesk.Hook.Tests/
+        └── AgentDesk.Desktop.Tests/
 ```
 
 ---

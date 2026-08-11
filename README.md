@@ -49,7 +49,7 @@ AgentDesk (.NET & Android) consists of four primary layers:
    - `AgentDesk.Server`: Lightweight ASP.NET Core loopback server listening on `127.0.0.1:8765`.
    - `AgentDesk.Desktop`: Windows System Tray app managing embedded server lifecycle, Android launching, and native ADB reverse tunneling (`tcp:8765 tcp:8765`).
    - `AgentDesk.Hook`: CLI bridge for receiving Codex / agent hook callbacks (`/api/v1/hooks/codex`).
-   - `tests/`: Unit & integration test suites for Core, Server, Desktop, and Hook projects.
+   - `tests/`: Unit test suites for the Core and Desktop projects.
 2. **`android-app/`**: Native Android app hosting the WebView interface and communicating with the Windows Bridge via HTTP API over ADB reverse.
 3. **`web-ui/`**: Modern React H5 dashboard embedded into Android WebView, displaying active turns, step progress, diffs, and action approval controls.
 4. **`protocol/`**: Protocol v1 definitions, JSON schemas, and message payload examples.
@@ -84,9 +84,7 @@ AgentDesk (.NET & Android) consists of four primary layers:
     ├── AgentDesk.Hook/
     └── tests/
         ├── AgentDesk.Core.Tests/
-        ├── AgentDesk.Server.Tests/
-        ├── AgentDesk.Desktop.Tests/
-        └── AgentDesk.Hook.Tests/
+        └── AgentDesk.Desktop.Tests/
 ```
 
 ---

@@ -40,7 +40,7 @@ This document tracks the transition from the legacy Python-based AgentDesk repos
 - [x] Implement `AgentDesk.Server` ASP.NET Core loopback listener on `127.0.0.1:8765` with endpoints (`/health`, `/api/v1/dashboard`, `/api/v1/events`, `/api/v1/actions`, `/api/v1/hooks/codex`).
 - [x] Implement `AgentDesk.Desktop` WinForms System Tray app with embedded server lifecycle control, restart state clear prompts, and native ADB reverse triggers.
 - [x] Implement `AgentDesk.Hook` CLI executable.
-- [x] Implement `AgentDesk.Core.Tests`, `AgentDesk.Server.Tests`, `AgentDesk.Desktop.Tests`, and `AgentDesk.Hook.Tests` test coverage.
+- [x] Implement `AgentDesk.Core.Tests` and `AgentDesk.Desktop.Tests` test coverage.
 - [x] Conduct end-to-end acceptance testing on physical Android device (Samsung Galaxy S23, SM-S9110) with .NET Windows Bridge.
 
 ---
