@@ -146,6 +146,7 @@ dotnet test windows/AgentDesk.sln --configuration Release --no-build
 2. **啟動 Desktop 主程式**：執行 `AgentDesk.Desktop.exe`（或透過 `dotnet run --project windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj`）。
 3. **確認 ADB Reverse**：確認已針對連接之 Android 裝置開啟 `adb reverse tcp:8765 tcp:8765`。
 4. **信任並核准專案 Hook**：當 Codex 提示時，核准並信任專案 `.codex/hooks.json`。
+   - 變更 `.codex/hooks.json` 後，請在啟動新的 Codex 任務前重新檢閱並信任專案 Hook。
 5. **確認已註冊之 Hook**：確認全數 7 個生命週期 Hook 皆已啟用（`SessionStart`、`SessionEnd`、`UserPromptSubmit`、`PreToolUse`、`PermissionRequest`、`PostToolUse`、`Stop`）。
 6. **啟動真實任務**：啟動一個新的 Codex 任務以觸發自動生命週期事件轉發。
 

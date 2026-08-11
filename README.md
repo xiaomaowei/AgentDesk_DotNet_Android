@@ -146,6 +146,7 @@ To enable real automatic lifecycle event forwarding from Codex tasks to AgentDes
 2. **Start Desktop Host**: Launch `AgentDesk.Desktop.exe` (or via `dotnet run --project windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj`).
 3. **Confirm ADB Reverse**: Ensure `adb reverse tcp:8765 tcp:8765` is active for connected Android devices.
 4. **Approve Project Hooks**: Trust and approve project hooks when prompted by Codex to allow `.codex/hooks.json` execution.
+   - After changing `.codex/hooks.json`, review and trust the project hooks again before starting a new Codex task.
 5. **Verify Registered Hooks**: Confirm all 7 lifecycle hooks are active (`SessionStart`, `SessionEnd`, `UserPromptSubmit`, `PreToolUse`, `PermissionRequest`, `PostToolUse`, `Stop`).
 6. **Start Real Task**: Launch a new Codex task to initiate automatic real-hook forwarding.
 

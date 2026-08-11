@@ -7,7 +7,7 @@
           {
             "type": "command",
             "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
-            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command \"try { $null = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/health' -TimeoutSec 1 -ErrorAction Stop } catch { Write-Output '{}'; exit 0 }; $root = git rev-parse --show-toplevel; & \\\"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\\\"\"",
+            "commandWindows": ".\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe",
             "timeout": 10
           }
         ]
@@ -19,7 +19,7 @@
           {
             "type": "command",
             "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
-            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command \"try { $null = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/health' -TimeoutSec 1 -ErrorAction Stop } catch { Write-Output '{}'; exit 0 }; $root = git rev-parse --show-toplevel; & \\\"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\\\"\"",
+            "commandWindows": ".\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe",
             "timeout": 3
           }
         ]
@@ -31,7 +31,7 @@
           {
             "type": "command",
             "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
-            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command \"try { $null = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/health' -TimeoutSec 1 -ErrorAction Stop } catch { Write-Output '{}'; exit 0 }; $root = git rev-parse --show-toplevel; & \\\"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\\\"\"",
+            "commandWindows": ".\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe",
             "timeout": 10
           }
         ]
@@ -44,7 +44,7 @@
           {
             "type": "command",
             "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
-            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command \"try { $null = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/health' -TimeoutSec 1 -ErrorAction Stop } catch { Write-Output '{}'; exit 0 }; $root = git rev-parse --show-toplevel; & \\\"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\\\"\"",
+            "commandWindows": ".\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe",
             "timeout": 10
           }
         ]
@@ -57,7 +57,7 @@
           {
             "type": "command",
             "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
-            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command \"try { $null = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/health' -TimeoutSec 1 -ErrorAction Stop } catch { Write-Output '{}'; exit 0 }; $root = git rev-parse --show-toplevel; & \\\"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\\\"\"",
+            "commandWindows": ".\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe",
             "timeout": 315,
             "statusMessage": "Waiting for AgentDesk approval"
           }
@@ -71,7 +71,7 @@
           {
             "type": "command",
             "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
-            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command \"try { $null = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/health' -TimeoutSec 1 -ErrorAction Stop } catch { Write-Output '{}'; exit 0 }; $root = git rev-parse --show-toplevel; & \\\"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\\\"\"",
+            "commandWindows": ".\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe",
             "timeout": 10
           }
         ]
@@ -83,7 +83,7 @@
           {
             "type": "command",
             "command": "./windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook",
-            "commandWindows": "powershell -WindowStyle Hidden -NoProfile -Command \"try { $null = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/health' -TimeoutSec 1 -ErrorAction Stop } catch { Write-Output '{}'; exit 0 }; $root = git rev-parse --show-toplevel; & \\\"$root\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe\\\"\"",
+            "commandWindows": ".\\windows\\artifacts\\AgentDesk.Hook-win-x64\\AgentDesk.Hook.exe",
             "timeout": 10
           }
         ]

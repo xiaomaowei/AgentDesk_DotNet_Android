@@ -24,4 +24,8 @@
     <ProjectReference Include="..\..\AgentDesk.Hook\AgentDesk.Hook.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="..\..\..\.codex\hooks.json" Link=".codex\hooks.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
