@@ -485,11 +485,11 @@ public class TrayApplicationContext : ApplicationContext
         base.Dispose(disposing);
     }
 
-    private static Icon? LoadTrayIcon()
+    public static Icon LoadTrayIcon(System.Reflection.Assembly? targetAssembly = null, string? baseDirectory = null)
     {
         try
         {
-            var assembly = typeof(TrayApplicationContext).Assembly;
+            var assembly = targetAssembly ?? typeof(TrayApplicationContext).Assembly;
             using var stream = assembly.GetManifestResourceStream("AgentDesk.Desktop.Assets.AgentDesk.ico");
             if (stream != null)
             {
@@ -497,10 +497,16 @@ public class TrayApplicationContext : ApplicationContext
                 return (Icon)loadedIcon.Clone();
             }
 
-            var filePath = Path.Combine(AppContext.BaseDirectory, "Assets", "AgentDesk.ico");
-            if (File.Exists(filePath))
+            var names = assembly.GetManifestResourceNames();
+            var matchingName = names.FirstOrDefault(n => n.EndsWith("AgentDesk.ico", StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrEmpty(matchingName))
             {
-                return new Icon(filePath);
+                using var stream2 = assembly.GetManifestResourceStream(matchingName);
+                if (stream2 != null)
+                {
+                    using var loadedIcon2 = new Icon(stream2);
+                    return (Icon)loadedIcon2.Clone();
+                }
             }
         }
         catch
@@ -508,6 +514,41 @@ public class TrayApplicationContext : ApplicationContext
             // Tolerate resource-load failure
         }
 
-        return null;
+        try
+        {
+            var baseDir = baseDirectory ?? AppContext.BaseDirectory;
+            if (!string.IsNullOrWhiteSpace(baseDir))
+            {
+                var filePath = Path.Combine(baseDir, "Assets", "AgentDesk.ico");
+                if (File.Exists(filePath))
+                {
+                    using var fileIcon = new Icon(filePath);
+                    return (Icon)fileIcon.Clone();
+                }
+            }
+        }
+        catch
+        {
+            // Tolerate file-load failure
+        }
+
+        try
+        {
+            var procPath = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(procPath) && File.Exists(procPath))
+            {
+                var assocIcon = Icon.ExtractAssociatedIcon(procPath);
+                if (assocIcon != null)
+                {
+                    return assocIcon;
+                }
+            }
+        }
+        catch
+        {
+            // Tolerate process icon extraction failure
+        }
+
+        return (Icon)SystemIcons.Application.Clone();
     }
 }

@@ -115,8 +115,19 @@ AgentDesk (.NET & Android) 由以下四個核心層次組成：
 點擊編譯後的 `AgentDesk.Desktop.exe` 可於背景系統列執行，不會出現 Console 視窗。
 
 ```powershell
-# 發布 AgentDesk.Desktop 與 AgentDesk.Hook 至指定 artifacts 目錄
+# 預設發布工作流程：檢查乾淨 Working Tree、拉取最新程式碼 (git pull --ff-only)、
+# 停止執行中的目標主程式（經警告與確認）、在原位發布兩項可執行檔、
+# 自動啟動 AgentDesk.Desktop.exe 並驗證 http://127.0.0.1:8765/health
 .\Publish-AgentDeskWindows.ps1
+
+# 本地開發／有未提交變更時之驗證（跳過 Git pull 與乾淨度檢查）
+.\Publish-AgentDeskWindows.ps1 -SkipGitPull
+
+# 非互動式自動發布與重啟
+.\Publish-AgentDeskWindows.ps1 -ForceStop
+
+# 僅發布模式（不停止執行中主程式、不自動啟動也不進行 Health Check）
+.\Publish-AgentDeskWindows.ps1 -NoLaunch
 
 # 建置整個 Windows Solution
 dotnet build windows/AgentDesk.sln -c Release
@@ -191,7 +202,15 @@ dotnet publish windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release -r 
 dotnet publish windows/AgentDesk.Hook/AgentDesk.Hook.csproj -c Release -r win-x64 --self-contained -o windows/artifacts/AgentDesk.Hook-win-x64
 ```
 
-> **便利封裝腳本**：您亦可執行 `.\Publish-AgentDeskWindows.ps1`，該腳本即會作為等效便利工具，自動執行上述兩條 `dotnet publish` 指令。
+> **便利封裝腳本**：執行 `.\Publish-AgentDeskWindows.ps1` 可自動完成更新、發布、啟動與 Health 驗證流程。
+> - **預設工作流程**：1) 檢查乾淨 Worktree 並執行 `git pull --ff-only`；2) 偵測並提示停止執行中之目標 `AgentDesk.Desktop.exe`；3) 原位發布雙專案；4) 自動啟動 `AgentDesk.Desktop.exe`；5) 輪詢驗證 `http://127.0.0.1:8765/health` 狀態。
+> - **風險說明**：停止執行中之主程式會清除記憶體內之 Session 狀態與待審核 Approvals。
+> - **穩定捷徑目標**：指向 `windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe` 之既有捷徑維持有效，因為發布會在固定工件路徑原位更新。
+> - **支援參數**：
+>   - `-SkipGitPull`：於本機開發或含有未提交變更時，跳過 Git 乾淨度檢查與 `git pull`。
+>   - `-NoLaunch`：僅發布模式（不停止執行中主程式、不啟動且不檢驗 Health；若目標正執行中會安全報錯終止）。
+>   - `-ForceStop` (或 `-Force`)：停止執行中目標主程式時跳過互動式確認提示。
+>   - `-SelfContained`：設定為 `$false` 以發布依賴 Framework 之版本（預設為 `$true`）。
 
 #### Artifacts 產出目錄與執行需求
 發布指令產出的確定性 (Deterministic) 工件目錄如下：
@@ -199,7 +218,7 @@ dotnet publish windows/AgentDesk.Hook/AgentDesk.Hook.csproj -c Release -r win-x6
 - **Hook 工具可執行檔**：`windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook.exe`
 
 > **執行與 Hook 設定需求**：
-> - 使用者必須直接從發布產出的工件目錄中啟動 `AgentDesk.Desktop.exe` (`windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`)。
+> - 使用者必須直接從發布產出的工件目錄中啟動 `AgentDesk.Desktop.exe` (`windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`)。既有指向此可執行檔路徑之每台電腦桌面捷徑於重新發布後仍維持有效。
 > - 已追蹤之 `.codex/hooks.json` 設定需要 **Desktop** (`AgentDesk.Desktop.exe`) 與 **Hook** (`AgentDesk.Hook.exe`) 兩者的發布工件皆存在才能正常運作。
 
 ---

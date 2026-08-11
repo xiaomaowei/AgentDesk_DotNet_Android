@@ -340,4 +340,82 @@ public class DesktopUnitTests
         await tcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
         thread.Join(1000);
     }
+
+    [Fact]
+    public async Task GetStatusAsync_DaemonStartupInStderrWithValidDevices_ReturnsConnected()
+    {
+        var mockRunner = new MockAdbCommandRunner();
+        mockRunner.CommandHandler = (path, args) =>
+        {
+            var argString = string.Join(" ", args);
+            if (argString == "devices -l")
+            {
+                var stdout = "List of devices attached\nRFCW607NEMH device product:r8q model:SM_G990N device:r8q transport_id:1\n";
+                var stderr = "* daemon not running; starting now at tcp:5037\n* daemon started successfully\n";
+                return new AdbCommandResult(0, stdout, stderr, TimedOut: false);
+            }
+            return new AdbCommandResult(0, "", "", TimedOut: false);
+        };
+
+        var manager = new AdbManager(mockRunner);
+        var status = await manager.GetStatusAsync("adb.exe");
+
+        Assert.Equal("Connected (1 device)", status);
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_NonZeroExitWithDaemonStartupAndError_ReturnsConciseRealError()
+    {
+        var mockRunner = new MockAdbCommandRunner();
+        mockRunner.CommandHandler = (path, args) =>
+        {
+            var argString = string.Join(" ", args);
+            if (argString == "devices -l")
+            {
+                var stderr = "* daemon not running; starting now at tcp:5037\n* daemon started successfully\nerror: cannot connect to daemon\n";
+                return new AdbCommandResult(1, "", stderr, TimedOut: false);
+            }
+            return new AdbCommandResult(0, "", "", TimedOut: false);
+        };
+
+        var manager = new AdbManager(mockRunner);
+        var status = await manager.GetStatusAsync("adb.exe");
+
+        Assert.Equal("ADB error: error: cannot connect to daemon", status);
+    }
+
+    [Fact]
+    public async Task GetStatusAsync_TimedOut_ReturnsConciseTimeoutError()
+    {
+        var mockRunner = new MockAdbCommandRunner();
+        mockRunner.CommandHandler = (path, args) =>
+        {
+            return new AdbCommandResult(-1, "", "", TimedOut: true);
+        };
+
+        var manager = new AdbManager(mockRunner);
+        var status = await manager.GetStatusAsync("adb.exe");
+
+        Assert.Equal("ADB error: command timed out", status);
+    }
+
+    [Fact]
+    public void LoadTrayIcon_LoadsEmbeddedIcon_ReturnsNonNullIcon()
+    {
+        using var icon = TrayApplicationContext.LoadTrayIcon();
+
+        Assert.NotNull(icon);
+        Assert.True(icon.Width > 0);
+        Assert.True(icon.Height > 0);
+    }
+
+    [Fact]
+    public void LoadTrayIcon_FallbackWhenResourceMissing_ReturnsNonNullIcon()
+    {
+        using var icon = TrayApplicationContext.LoadTrayIcon(typeof(object).Assembly, Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("n")));
+
+        Assert.NotNull(icon);
+        Assert.True(icon.Width > 0);
+        Assert.True(icon.Height > 0);
+    }
 }

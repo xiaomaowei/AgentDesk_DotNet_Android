@@ -37,6 +37,7 @@ __pycache__/
 .DS_Store
 Thumbs.db
 Desktop.ini
+/AgentDesk Windows.lnk
 
 # Logs, Secrets & Release Packages
 *.log

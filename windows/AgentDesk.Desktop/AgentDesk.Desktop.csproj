@@ -8,7 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Assets\AgentDesk.ico" />
+    <EmbeddedResource Include="Assets\AgentDesk.ico">
+      <LogicalName>AgentDesk.Desktop.Assets.AgentDesk.ico</LogicalName>
+    </EmbeddedResource>
     <Content Include="Assets\AgentDesk.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
