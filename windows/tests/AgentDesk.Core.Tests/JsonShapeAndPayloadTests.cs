@@ -141,4 +141,25 @@ public class JsonShapeAndPayloadTests
         Assert.Equal("state", projects[0].GetProperty("type").GetString());
         Assert.Equal("TestProject", projects[0].GetProperty("payload").GetProperty("project").GetString());
     }
+
+    [Fact]
+    public void HookCompactor_PreservesReasoningEffort_InFallbackPayload()
+    {
+        var jsonObj = new System.Text.Json.Nodes.JsonObject
+        {
+            ["hook_event_name"] = "UserPromptSubmit",
+            ["session_id"] = "s_compact_1",
+            ["model"] = "gpt-5.6-sol",
+            ["reasoning_effort"] = "high",
+            ["prompt"] = new string('x', 70 * 1024) // > 60 KiB to force fallback compaction
+        };
+
+        var rawBytes = System.Text.Encoding.UTF8.GetBytes(jsonObj.ToJsonString());
+        var compactedBytes = AgentDesk.Hook.HookCompactor.CompactPayload(rawBytes, jsonObj);
+
+        using var doc = JsonDocument.Parse(compactedBytes);
+        var root = doc.RootElement;
+        Assert.Equal("gpt-5.6-sol", root.GetProperty("model").GetString());
+        Assert.Equal("high", root.GetProperty("reasoning_effort").GetString());
+    }
 }

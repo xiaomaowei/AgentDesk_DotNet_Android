@@ -48,7 +48,7 @@ public class CodexTranslator
         {
             TouchSession(sessionId);
 
-            AccumulateModels(sessionId, eventElement);
+            AccumulateModels(sessionId, eventElement, parseResult);
             UpdateCurrentTurn(sessionId, eventName, eventElement, parseResult);
 
             if (removeSession)
@@ -298,14 +298,28 @@ public class CodexTranslator
         return null;
     }
 
-    private void AccumulateModels(string sessionId, JsonElement el)
+    private void AccumulateModels(string sessionId, JsonElement el, TranscriptParseResult parseResult)
     {
         var labels = new List<string>();
 
         var modelSlug = GetStringProperty(el, "model");
+        if (string.IsNullOrWhiteSpace(modelSlug))
+        {
+            modelSlug = parseResult.TranscriptModel;
+        }
+
         if (!string.IsNullOrWhiteSpace(modelSlug))
         {
             var effort = GetStringProperty(el, "effort");
+            if (string.IsNullOrWhiteSpace(effort))
+            {
+                effort = GetStringProperty(el, "reasoning_effort");
+            }
+            if (string.IsNullOrWhiteSpace(effort))
+            {
+                effort = parseResult.TranscriptEffort;
+            }
+
             var label = ModelHelper.NormalizeModelSlug(modelSlug, effort);
             if (!string.IsNullOrEmpty(label))
             {

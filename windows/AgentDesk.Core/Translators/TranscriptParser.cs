@@ -7,6 +7,8 @@ public record TranscriptParseResult
 {
     public long? ConversationTokens { get; init; }
     public CommentaryItem? LatestCommentary { get; init; }
+    public string? TranscriptModel { get; init; }
+    public string? TranscriptEffort { get; init; }
 }
 
 public record CommentaryItem
@@ -18,6 +20,87 @@ public record CommentaryItem
 public static class TranscriptParser
 {
     public const int MaxTailBytes = 256 * 1024; // 256 KiB
+    public const int MaxHeaderBytes = 256 * 1024; // 256 KiB
+
+    public static (string? Model, string? Effort) ParseHeader(string? transcriptPath, int maxBytes = MaxHeaderBytes)
+    {
+        if (string.IsNullOrWhiteSpace(transcriptPath) || !File.Exists(transcriptPath))
+        {
+            return (null, null);
+        }
+
+        try
+        {
+            using var fs = new FileStream(transcriptPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            long length = fs.Length;
+            if (length <= 0)
+            {
+                return (null, null);
+            }
+
+            int bytesToRead = (int)Math.Min(length, maxBytes);
+            byte[] buffer = new byte[bytesToRead];
+            int bytesRead = 0;
+            while (bytesRead < bytesToRead)
+            {
+                int read = fs.Read(buffer, bytesRead, bytesToRead - bytesRead);
+                if (read <= 0) break;
+                bytesRead += read;
+            }
+
+            if (bytesRead < buffer.Length)
+            {
+                Array.Resize(ref buffer, bytesRead);
+            }
+
+            string text = Encoding.UTF8.GetString(buffer);
+            if (length > maxBytes)
+            {
+                int lastNewline = text.LastIndexOf('\n');
+                if (lastNewline >= 0)
+                {
+                    text = text[..lastNewline];
+                }
+            }
+
+            var lines = text.Split(new[] { "\r\n", "\n" }, StringSplitOptions.None);
+            string? latestModel = null;
+            string? latestEffort = null;
+
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+                if (string.IsNullOrEmpty(trimmed)) continue;
+
+                try
+                {
+                    using var doc = JsonDocument.Parse(trimmed);
+                    var root = doc.RootElement;
+                    if (root.ValueKind != JsonValueKind.Object) continue;
+
+                    var (model, effort) = ExtractTurnContextMetadata(root);
+                    if (!string.IsNullOrWhiteSpace(model))
+                    {
+                        latestModel = model;
+                    }
+                    if (!string.IsNullOrWhiteSpace(effort))
+                    {
+                        latestEffort = effort;
+                    }
+                }
+                catch
+                {
+                    // Fail open on invalid JSON line
+                }
+            }
+
+            return (latestModel, latestEffort);
+        }
+        catch
+        {
+            return (null, null);
+        }
+    }
 
     public static TranscriptParseResult ParseTail(string? transcriptPath, int maxBytes = MaxTailBytes)
     {
@@ -25,6 +108,8 @@ public static class TranscriptParser
         {
             return new TranscriptParseResult();
         }
+
+        var (headerModel, headerEffort) = ParseHeader(transcriptPath);
 
         byte[] buffer;
         bool isTailCut = false;
@@ -116,8 +201,53 @@ public static class TranscriptParser
         return new TranscriptParseResult
         {
             ConversationTokens = latestTokens,
-            LatestCommentary = latestCommentary
+            LatestCommentary = latestCommentary,
+            TranscriptModel = headerModel,
+            TranscriptEffort = headerEffort
         };
+    }
+
+    private static (string? Model, string? Effort) ExtractTurnContextMetadata(JsonElement root)
+    {
+        string? topType = GetStringProp(root, "type");
+        JsonElement payload = default;
+        bool hasPayload = root.TryGetProperty("payload", out payload) && payload.ValueKind == JsonValueKind.Object;
+        string? payloadType = hasPayload ? GetStringProp(payload, "type") : null;
+
+        bool isTurnContext = topType == "turn_context" || payloadType == "turn_context" || topType == "session_meta" || payloadType == "session_meta";
+
+        if (!isTurnContext)
+        {
+            return (null, null);
+        }
+
+        string? model = null;
+        string? effort = null;
+
+        JsonElement[] targets = hasPayload ? new[] { payload, root } : new[] { root };
+
+        foreach (var target in targets)
+        {
+            if (model == null)
+            {
+                model = GetStringProp(target, "model") ?? GetStringProp(target, "model_slug") ?? GetStringProp(target, "model_name");
+            }
+
+            if (effort == null)
+            {
+                effort = GetStringProp(target, "effort") ?? GetStringProp(target, "reasoning_effort");
+
+                if (string.IsNullOrWhiteSpace(effort) && target.TryGetProperty("collaboration_mode", out var mode) && mode.ValueKind == JsonValueKind.Object)
+                {
+                    if (mode.TryGetProperty("settings", out var settings) && settings.ValueKind == JsonValueKind.Object)
+                    {
+                        effort = GetStringProp(settings, "reasoning_effort") ?? GetStringProp(settings, "effort");
+                    }
+                }
+            }
+        }
+
+        return (model, effort);
     }
 
     private static long? ExtractTokens(JsonElement root)

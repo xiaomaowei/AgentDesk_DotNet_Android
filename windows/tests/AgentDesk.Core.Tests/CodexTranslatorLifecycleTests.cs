@@ -266,4 +266,71 @@ public class CodexTranslatorLifecycleTests
         Assert.NotNull(update.State);
         Assert.Equal("s1", update.State.SessionId);
     }
+
+    [Fact]
+    public void Translate_ModelEffort_ExtractsReasoningEffort()
+    {
+        var translator = new CodexTranslator();
+        using var doc = JsonDocument.Parse("""
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "s_re_1",
+            "model": "gpt-5.6-sol",
+            "reasoning_effort": "high",
+            "prompt": "Hello"
+        }
+        """);
+
+        var update = translator.Translate(doc.RootElement);
+        Assert.Contains("Sol High", update.State.Models);
+    }
+
+    [Fact]
+    public void Translate_ModelEffort_PrefersEffortOverReasoningEffort()
+    {
+        var translator = new CodexTranslator();
+        using var doc = JsonDocument.Parse("""
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "s_re_2",
+            "model": "gpt-5.6-sol",
+            "effort": "low",
+            "reasoning_effort": "high",
+            "prompt": "Hello"
+        }
+        """);
+
+        var update = translator.Translate(doc.RootElement);
+        Assert.Contains("Sol Low", update.State.Models);
+        Assert.DoesNotContain("Sol High", update.State.Models);
+    }
+
+    [Fact]
+    public void Translate_ModelEffort_LunaAndTerraWithReasoningEffort()
+    {
+        var translator = new CodexTranslator();
+        using var docLuna = JsonDocument.Parse("""
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "s_re_luna",
+            "model": "gpt-5.6-luna",
+            "reasoning_effort": "medium",
+            "prompt": "Hello"
+        }
+        """);
+        var updateLuna = translator.Translate(docLuna.RootElement);
+        Assert.Contains("Luna Medium", updateLuna.State.Models);
+
+        using var docTerra = JsonDocument.Parse("""
+        {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "s_re_terra",
+            "model": "gpt-5.6-terra",
+            "reasoning_effort": "low",
+            "prompt": "Hello"
+        }
+        """);
+        var updateTerra = translator.Translate(docTerra.RootElement);
+        Assert.Contains("Terra Low", updateTerra.State.Models);
+    }
 }

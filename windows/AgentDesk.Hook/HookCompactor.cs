@@ -116,6 +116,7 @@ public static class HookCompactor
             "cwd",
             "model",
             "effort",
+            "reasoning_effort",
             "transcript_path",
             "tool_name",
             "conversation_title",
@@ -181,7 +182,7 @@ public static class HookCompactor
 
         // 6. Minimal guaranteed payload (hard safety net <= MaxPayloadBytes)
         var minimal = new JsonObject();
-        string[] minimalKeys = ["hook_event_name", "session_id", "cwd", "model", "tool_name", "tool_use_id", "effort"];
+        string[] minimalKeys = ["hook_event_name", "session_id", "cwd", "model", "tool_name", "tool_use_id", "effort", "reasoning_effort"];
         foreach (var key in minimalKeys)
         {
             string? strVal = GetString(working[key]);

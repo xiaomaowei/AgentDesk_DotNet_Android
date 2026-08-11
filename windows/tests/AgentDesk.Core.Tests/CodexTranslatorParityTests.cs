@@ -277,4 +277,51 @@ public class CodexTranslatorParityTests : IDisposable
         // Total payload items: 1 commentary + 20 tools + 1 final = 22 items
         Assert.Equal(22, payloadItems.Count);
     }
+
+    [Fact]
+    public void Translate_TranscriptHeaderTurnContext_UsedWhenHookLacksEffort_EvenIfTranscriptOver256KB()
+    {
+        var translator = new CodexTranslator();
+        // Valid JSONL record padding exceeding 64 KiB (placing turn_context at ~155 KiB offset)
+        var initialPadding = new string('A', 155 * 1024);
+        var metaLine = "{\"type\":\"session_meta\",\"payload\":{\"padding\":" + JsonSerializer.Serialize(initialPadding) + "}}";
+        var turnContextLine = """{"type":"turn_context","payload":{"model":"gpt-5.6-sol","effort":"high","collaboration_mode":{"settings":{"reasoning_effort":"high"}}}}""";
+        var trailingPadding = new string('B', 200 * 1024); // File size ~355 KiB (> 256 KiB)
+
+        var fileContent = $"{metaLine}\n{turnContextLine}\n{trailingPadding}\n";
+        var largeFile = CreateTempFile(fileContent);
+
+        using var doc = JsonDocument.Parse($$"""
+        {
+            "hook_event_name": "PreToolUse",
+            "session_id": "s_hdr_155k",
+            "model": "gpt-5.6-sol",
+            "tool_name": "exec_cmd",
+            "transcript_path": {{JsonSerializer.Serialize(largeFile)}}
+        }
+        """);
+
+        var update = translator.Translate(doc.RootElement);
+        Assert.Contains("Sol High", update.State.Models);
+    }
+
+    [Fact]
+    public void TranscriptParser_ParseHeader_HandlesInvalidUnreadableAndBoundedBehavior()
+    {
+        // Null and non-existent path
+        Assert.Equal((null, null), TranscriptParser.ParseHeader(null));
+        Assert.Equal((null, null), TranscriptParser.ParseHeader("C:\\non_existent_transcript_12345.jsonl"));
+
+        // Malformed JSON file
+        var badFile = CreateTempFile("invalid json line 1\n{broken json\n");
+        Assert.Equal((null, null), TranscriptParser.ParseHeader(badFile));
+
+        // Bounded behavior: turn_context beyond 256 KiB MaxHeaderBytes is not read
+        var padding = new string('Y', 300 * 1024); // 300 KiB padding > 256 KiB MaxHeaderBytes
+        var turnContextLine = """{"type":"turn_context","payload":{"model":"gpt-5.6-sol","effort":"high"}}""";
+        var boundedFile = CreateTempFile($"{padding}\n{turnContextLine}\n");
+
+        var result = TranscriptParser.ParseHeader(boundedFile);
+        Assert.Null(result.Effort);
+    }
 }
