@@ -37,8 +37,11 @@ dotnet build windows/AgentDesk.sln --configuration Release --no-restore
 # Run test suites
 dotnet test windows/AgentDesk.sln --configuration Release --no-build
 
-# Publish framework-dependent win-x64 Desktop and Hook executables via root script
+# Default publish workflow (verifies clean worktree, pulls, stops target instance, publishes, launches, & checks health)
 .\Publish-AgentDeskWindows.ps1
+
+# Publish locally with uncommitted changes (skips git pull & cleanliness check)
+.\Publish-AgentDeskWindows.ps1 -SkipGitPull
 
 # Run System Tray App
 dotnet run --project windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release
@@ -52,8 +55,10 @@ dotnet run --project windows/AgentDesk.Hook/AgentDesk.Hook.csproj -c Release
 
 ## Published Artifacts
 
-Running `Publish-AgentDeskWindows.ps1` creates deterministic framework-dependent `win-x64` output directories:
+Running `Publish-AgentDeskWindows.ps1` updates binaries in-place at deterministic `win-x64` output directories:
 - `windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`
 - `windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook.exe`
+
+Existing shortcuts referencing `AgentDesk.Desktop.exe` remain valid across republishes. Supported script switches include `-SkipGitPull` (bypass Git pull and clean worktree check), `-NoLaunch` (publish only, fails safely if target is running), `-ForceStop` (bypass stop confirmation prompt), and `-SelfContained` (default `$true`).
 
 The tracked `.codex/hooks.json` points all Windows hook invocations directly at `windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook.exe`.

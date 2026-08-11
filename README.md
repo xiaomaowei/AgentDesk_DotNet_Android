@@ -115,8 +115,19 @@ Ensures `adb reverse tcp:8765 tcp:8765` is maintained, starts the background wat
 Double-clicking the compiled `AgentDesk.Desktop.exe` runs silently in the system tray without a console window.
 
 ```powershell
-# Publish both AgentDesk.Desktop and AgentDesk.Hook as win-x64 artifacts
+# Default publish workflow: verifies clean Git worktree, pulls latest changes (git pull --ff-only),
+# stops running target instance (after warning/confirmation), publishes both executables in-place,
+# automatically launches AgentDesk.Desktop.exe, and verifies http://127.0.0.1:8765/health
 .\Publish-AgentDeskWindows.ps1
+
+# Local development / dirty worktree validation (skips git pull & cleanliness check)
+.\Publish-AgentDeskWindows.ps1 -SkipGitPull
+
+# Non-interactive publish and restart
+.\Publish-AgentDeskWindows.ps1 -ForceStop
+
+# Publish-only mode without stopping running instance or launching
+.\Publish-AgentDeskWindows.ps1 -NoLaunch
 
 # Restore & build solution
 dotnet build windows/AgentDesk.sln -c Release
@@ -191,7 +202,15 @@ dotnet publish windows/AgentDesk.Desktop/AgentDesk.Desktop.csproj -c Release -r 
 dotnet publish windows/AgentDesk.Hook/AgentDesk.Hook.csproj -c Release -r win-x64 --self-contained -o windows/artifacts/AgentDesk.Hook-win-x64
 ```
 
-> **Convenience Wrapper Script**: You may also run `.\Publish-AgentDeskWindows.ps1`, which serves as an equivalent convenience wrapper executing these exact `dotnet publish` commands for both projects.
+> **Convenience Wrapper Script**: Running `.\Publish-AgentDeskWindows.ps1` automates the update, publish, launch, and health verification workflow.
+> - **Default Workflow**: 1) Enforces a clean worktree & executes `git pull --ff-only`, 2) Detects and prompts to stop any running target `AgentDesk.Desktop.exe`, 3) Publishes both projects, 4) Launches `AgentDesk.Desktop.exe`, 5) Verifies server health at `http://127.0.0.1:8765/health`.
+> - **Risk Notice**: Stopping a running instance clears in-memory session states and active approvals.
+> - **Stable Shortcut Target**: Existing desktop shortcuts pointing to `windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe` remain valid as binaries are updated in-place at deterministic paths.
+> - **Available Switches**:
+>   - `-SkipGitPull`: Skip Git cleanliness check and `git pull` for local development with uncommitted changes.
+>   - `-NoLaunch`: Publish-only mode (does not stop running instance, launch, or health check; fails if target is running).
+>   - `-ForceStop` (or `-Force`): Bypass interactive confirmation prompt when stopping running target instance.
+>   - `-SelfContained`: Set to `$false` for framework-dependent build (defaults to `$true`).
 
 #### Artifact Output Directories & Launch Requirements
 The deterministic artifact directories produced by the publish commands are:
@@ -199,7 +218,7 @@ The deterministic artifact directories produced by the publish commands are:
 - **Hook Executable**: `windows/artifacts/AgentDesk.Hook-win-x64/AgentDesk.Hook.exe`
 
 > **Execution & Hook Setup Requirements**:
-> - Users must launch `AgentDesk.Desktop.exe` directly from its published artifact directory (`windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`).
+> - Users must launch `AgentDesk.Desktop.exe` directly from its published artifact directory (`windows/artifacts/AgentDesk.Desktop-win-x64/AgentDesk.Desktop.exe`). Existing per-machine shortcuts targeting this executable path remain valid after republishing.
 > - Both the **Desktop** (`AgentDesk.Desktop.exe`) and **Hook** (`AgentDesk.Hook.exe`) published artifacts are required for the tracked `.codex/hooks.json` integration to operate correctly.
 
 ---
