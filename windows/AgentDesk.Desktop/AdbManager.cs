@@ -115,6 +115,15 @@ public class AdbManager
         foreach (var rawLine in lines)
         {
             var trimmed = rawLine.Trim();
+            if (trimmed.Length > 0 && !trimmed.StartsWith("* daemon", StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed.Length > 240 ? trimmed[..240] : trimmed;
+            }
+        }
+
+        foreach (var rawLine in lines)
+        {
+            var trimmed = rawLine.Trim();
             if (trimmed.Length > 0)
             {
                 return trimmed.Length > 240 ? trimmed[..240] : trimmed;
@@ -132,9 +141,19 @@ public class AdbManager
         }
 
         var result = await _runner.RunAsync(adbPath, new[] { "devices", "-l" }, cancellationToken).ConfigureAwait(false);
-        if (result.TimedOut || result.ExitCode != 0)
+        if (result.TimedOut)
         {
-            return $"ADB error: {FormatConciseError(result.Error)}";
+            var rawErr = !string.IsNullOrWhiteSpace(result.Error) ? result.Error : result.Output;
+            if (string.IsNullOrWhiteSpace(rawErr))
+            {
+                return "ADB error: command timed out";
+            }
+            return $"ADB error: {FormatConciseError(rawErr)}";
+        }
+        if (result.ExitCode != 0)
+        {
+            var rawErr = !string.IsNullOrWhiteSpace(result.Error) ? result.Error : result.Output;
+            return $"ADB error: {FormatConciseError(rawErr)}";
         }
 
         var serials = ParseDevices(result.Output);
@@ -156,7 +175,8 @@ public class AdbManager
         var devicesResult = await _runner.RunAsync(adbPath, new[] { "devices", "-l" }, cancellationToken).ConfigureAwait(false);
         if (devicesResult.ExitCode != 0 || devicesResult.TimedOut)
         {
-            var err = FormatConciseError(devicesResult.Error);
+            var rawErr = !string.IsNullOrWhiteSpace(devicesResult.Error) ? devicesResult.Error : devicesResult.Output;
+            var err = devicesResult.TimedOut && string.IsNullOrWhiteSpace(rawErr) ? "command timed out" : FormatConciseError(rawErr);
             throw new InvalidOperationException($"ADB devices failed: {err}");
         }
 
@@ -177,7 +197,8 @@ public class AdbManager
             var revResult = await _runner.RunAsync(adbPath, new[] { "-s", serial, "reverse", "tcp:8765", "tcp:8765" }, cancellationToken).ConfigureAwait(false);
             if (revResult.ExitCode != 0 || revResult.TimedOut)
             {
-                var err = FormatConciseError(revResult.Error);
+                var rawErr = !string.IsNullOrWhiteSpace(revResult.Error) ? revResult.Error : revResult.Output;
+                var err = revResult.TimedOut && string.IsNullOrWhiteSpace(rawErr) ? "command timed out" : FormatConciseError(rawErr);
                 throw new InvalidOperationException($"ADB reverse failed for {serial}: {err}");
             }
         }
@@ -193,14 +214,16 @@ public class AdbManager
         var startResult = await _runner.RunAsync(adbPath, new[] { "start-server" }, cancellationToken).ConfigureAwait(false);
         if (startResult.ExitCode != 0 || startResult.TimedOut)
         {
-            var err = FormatConciseError(startResult.Error);
+            var rawErr = !string.IsNullOrWhiteSpace(startResult.Error) ? startResult.Error : startResult.Output;
+            var err = startResult.TimedOut && string.IsNullOrWhiteSpace(rawErr) ? "command timed out" : FormatConciseError(rawErr);
             throw new InvalidOperationException($"ADB start-server failed: {err}");
         }
 
         var devicesResult = await _runner.RunAsync(adbPath, new[] { "devices", "-l" }, cancellationToken).ConfigureAwait(false);
         if (devicesResult.ExitCode != 0 || devicesResult.TimedOut)
         {
-            var err = FormatConciseError(devicesResult.Error);
+            var rawErr = !string.IsNullOrWhiteSpace(devicesResult.Error) ? devicesResult.Error : devicesResult.Output;
+            var err = devicesResult.TimedOut && string.IsNullOrWhiteSpace(rawErr) ? "command timed out" : FormatConciseError(rawErr);
             throw new InvalidOperationException($"ADB devices failed: {err}");
         }
 
@@ -218,7 +241,8 @@ public class AdbManager
                 var revResult = await _runner.RunAsync(adbPath, new[] { "-s", serial, "reverse", "tcp:8765", "tcp:8765" }, cancellationToken).ConfigureAwait(false);
                 if (revResult.ExitCode != 0 || revResult.TimedOut)
                 {
-                    var err = FormatConciseError(revResult.Error);
+                    var rawErr = !string.IsNullOrWhiteSpace(revResult.Error) ? revResult.Error : revResult.Output;
+                    var err = revResult.TimedOut && string.IsNullOrWhiteSpace(rawErr) ? "command timed out" : FormatConciseError(rawErr);
                     throw new InvalidOperationException($"ADB reverse failed for {serial}: {err}");
                 }
             }
@@ -226,7 +250,8 @@ public class AdbManager
             var launchResult = await _runner.RunAsync(adbPath, new[] { "-s", serial, "shell", "am", "start", "-n", "com.agentdeck.mobile/.MainActivity" }, cancellationToken).ConfigureAwait(false);
             if (launchResult.ExitCode != 0 || launchResult.TimedOut)
             {
-                var err = FormatConciseError(launchResult.Error);
+                var rawErr = !string.IsNullOrWhiteSpace(launchResult.Error) ? launchResult.Error : launchResult.Output;
+                var err = launchResult.TimedOut && string.IsNullOrWhiteSpace(rawErr) ? "command timed out" : FormatConciseError(rawErr);
                 throw new InvalidOperationException($"ADB launch failed for {serial}: {err}");
             }
         }
