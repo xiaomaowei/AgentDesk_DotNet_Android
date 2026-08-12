@@ -10,7 +10,9 @@ public class TrayApplicationContext : ApplicationContext
     private readonly ToolStripMenuItem _statusMenuItem;
     private readonly ToolStripMenuItem _restartMenuItem;
     private readonly ToolStripMenuItem _launchMenuItem;
+    private readonly ToolStripMenuItem _dashboardMenuItem;
     private readonly ToolStripMenuItem _exitMenuItem;
+    private DashboardForm? _dashboardForm;
 
     private readonly ServerHostManager _serverHostManager;
     private readonly AdbManager _adbManager;
@@ -49,6 +51,7 @@ public class TrayApplicationContext : ApplicationContext
         _statusMenuItem = new ToolStripMenuItem("Status: Initializing...") { Enabled = false };
         _restartMenuItem = new ToolStripMenuItem("Restart Server...", null, OnRestartServerClicked);
         _launchMenuItem = new ToolStripMenuItem("Connect & Launch Android", null, OnConnectAndLaunchClicked);
+        _dashboardMenuItem = new ToolStripMenuItem("Secondary Display Dashboard", null, OnSecondaryDisplayDashboardClicked) { CheckOnClick = false };
         _exitMenuItem = new ToolStripMenuItem("Exit", null, OnExitClicked);
 
         var menu = new ContextMenuStrip();
@@ -56,6 +59,7 @@ public class TrayApplicationContext : ApplicationContext
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_restartMenuItem);
         menu.Items.Add(_launchMenuItem);
+        menu.Items.Add(_dashboardMenuItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(_exitMenuItem);
 
@@ -318,6 +322,86 @@ public class TrayApplicationContext : ApplicationContext
         }
     }
 
+    private void OnSecondaryDisplayDashboardClicked(object? sender, EventArgs e)
+    {
+        if (IsShutdownRequested) return;
+
+        if (_dashboardForm != null)
+        {
+            CloseDashboardWindow();
+            return;
+        }
+
+        var secondaryScreen = DisplayHelper.GetSecondaryScreen();
+        if (secondaryScreen == null)
+        {
+            _dashboardMenuItem.Checked = false;
+            MessageBox.Show(
+                "No secondary display detected.",
+                "Secondary Display Dashboard",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+            return;
+        }
+
+        try
+        {
+            var serverAddress = _serverHostManager.Addresses.FirstOrDefault() ?? "http://127.0.0.1:8765";
+            if (!serverAddress.EndsWith("/")) serverAddress += "/";
+            var navigateUri = new Uri(new Uri(serverAddress), "assets/index.html");
+
+            _dashboardForm = new DashboardForm(secondaryScreen, navigateUri);
+            _dashboardForm.FormClosed += (_, _) =>
+            {
+                _dashboardForm = null;
+                try
+                {
+                    _dashboardMenuItem.Checked = false;
+                }
+                catch
+                {
+                }
+            };
+
+            _dashboardMenuItem.Checked = true;
+            _dashboardForm.Show();
+        }
+        catch (Exception ex)
+        {
+            _dashboardMenuItem.Checked = false;
+            CloseDashboardWindow();
+            MessageBox.Show(
+                $"Failed to open Secondary Display Dashboard:\n{ex.Message}",
+                "Dashboard Error",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
+    }
+
+    private void CloseDashboardWindow()
+    {
+        if (_dashboardForm != null)
+        {
+            var form = _dashboardForm;
+            _dashboardForm = null;
+            try
+            {
+                form.Close();
+                form.Dispose();
+            }
+            catch
+            {
+            }
+        }
+        try
+        {
+            _dashboardMenuItem.Checked = false;
+        }
+        catch
+        {
+        }
+    }
+
     private void OnExitClicked(object? sender, EventArgs e)
     {
         TriggerExit();
@@ -335,10 +419,13 @@ public class TrayApplicationContext : ApplicationContext
 
     private async Task PerformShutdownAsync()
     {
+        CloseDashboardWindow();
+
         try
         {
             _restartMenuItem.Enabled = false;
             _launchMenuItem.Enabled = false;
+            _dashboardMenuItem.Enabled = false;
             _exitMenuItem.Enabled = false;
         }
         catch

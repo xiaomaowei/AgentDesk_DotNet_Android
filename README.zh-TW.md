@@ -47,7 +47,7 @@ AgentDesk (.NET & Android) 由以下四個核心層次組成：
 1. **`windows/` (.NET 8 Windows Bridge)**:
    - `AgentDesk.Core`: 領域模型、協定 Schema 與狀態管理。
    - `AgentDesk.Server`: 輕量級 HTTP API Server，僅監聽 `127.0.0.1:8765`。
-   - `AgentDesk.Desktop`: Windows 工作列圖示（System Tray）應用程式，負責內嵌 Server 生命週期、Android 啟動與原生 ADB Reverse 管理。
+   - `AgentDesk.Desktop`: Windows 工作列圖示（System Tray）應用程式，負責內嵌 Server 生命週期、副螢幕 WebView2 控制面板、Android 啟動與原生 ADB Reverse 管理。
    - `AgentDesk.Hook`: 接收 Codex 或其他 Agent 鉤子回呼的 CLI/Bridge 介面 (`/api/v1/hooks/codex`)。
    - `tests/`: Core 與 Desktop 專案的單元測試套件。
 2. **`android-app/`**: 原生 Android 應用程式，承載 WebView 並透過 ADB Reverse HTTP API 與 Windows Bridge 通訊。

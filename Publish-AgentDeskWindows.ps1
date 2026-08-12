@@ -178,6 +178,23 @@ if ($targetProcesses.Count -gt 0) {
 }
 
 # Step 3: Publish executables
+$webUiDir = Join-Path $scriptDir "web-ui"
+if (Test-Path -LiteralPath (Join-Path $webUiDir "package.json")) {
+    Write-Host "Installing web-ui dependencies..." -ForegroundColor Cyan
+    npm --prefix "$webUiDir" ci
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to install web-ui dependencies via npm ci."
+        exit $LASTEXITCODE
+    }
+
+    Write-Host "Building web-ui H5 assets..." -ForegroundColor Cyan
+    npm --prefix "$webUiDir" run build
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Failed to build web-ui H5 assets."
+        exit $LASTEXITCODE
+    }
+}
+
 $selfContainedBoolStr = if ($SelfContained) { "true" } else { "false" }
 
 Write-Host "Publishing AgentDesk.Desktop (win-x64 self-contained: $selfContainedBoolStr)..." -ForegroundColor Cyan

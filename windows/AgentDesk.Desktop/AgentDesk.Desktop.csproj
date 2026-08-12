@@ -17,8 +17,29 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4078.44" PrivateAssets="buildTransitive" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\web-ui\dist\**">
+      <Link>Dashboard\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\AgentDesk.Core\AgentDesk.Core.csproj" />
     <ProjectReference Include="..\AgentDesk.Server\AgentDesk.Server.csproj" />
   </ItemGroup>
+
+  <!-- Workaround for upstream WebView2 package bug (MicrosoftEdge/WebView2Feedback #5219 and #4959):
+       Microsoft.Web.WebView2 unconditionally adds Microsoft.Web.WebView2.Wpf.dll even in WinForms-only projects,
+       triggering MSB3277 conflicts with WindowsBase. Remove Microsoft.Web.WebView2.Wpf reference before ResolveAssemblyReferences. -->
+  <Target Name="RemoveWebView2WpfReference" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
 
 </Project>

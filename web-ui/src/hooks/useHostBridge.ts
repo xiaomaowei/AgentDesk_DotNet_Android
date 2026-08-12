@@ -246,6 +246,24 @@ function validateStateEnvelope(val: unknown): StateEnvelope | null {
   };
 }
 
+export function isWindowsLoopbackDashboard(
+  locationOrigin: string = typeof window !== 'undefined' ? window.location.origin : '',
+  pathname: string = typeof window !== 'undefined' ? window.location.pathname : ''
+): boolean {
+  if (!locationOrigin) return false;
+  try {
+    const url = new URL(locationOrigin);
+    if (url.protocol !== 'http:') return false;
+    if (url.port !== '8765') return false;
+    const host = url.hostname;
+    const isLoopback = host === '127.0.0.1' || host === 'localhost' || host === '[::1]' || host === '::1';
+    const isAssetsPath = pathname.startsWith('/assets/') || pathname === '/assets';
+    return isLoopback && isAssetsPath;
+  } catch {
+    return false;
+  }
+}
+
 export function parseDashboardMessage(raw: unknown): HostDashboardMessage | null {
   try {
     let parsed: unknown = raw;
@@ -253,6 +271,32 @@ export function parseDashboardMessage(raw: unknown): HostDashboardMessage | null
       parsed = JSON.parse(raw);
     }
     if (!isObject(parsed)) return null;
+
+    if (parsed.current !== undefined || parsed.projects !== undefined) {
+      const currentEnvelope =
+        parsed.current !== null && parsed.current !== undefined
+          ? validateStateEnvelope(parsed.current)
+          : null;
+
+      if (parsed.current !== null && parsed.current !== undefined && !currentEnvelope) {
+        return null;
+      }
+
+      if (!Array.isArray(parsed.projects)) return null;
+      const projects: StateEnvelope[] = [];
+      for (const projVal of parsed.projects) {
+        const envelope = validateStateEnvelope(projVal);
+        if (!envelope) return null;
+        projects.push(envelope);
+      }
+
+      return {
+        type: 'dashboard',
+        dashboard: { current: currentEnvelope, projects },
+        connected: true,
+      };
+    }
+
     if (parsed.type !== 'dashboard') return null;
     if (!isObject(parsed.dashboard)) return null;
 
@@ -306,6 +350,53 @@ export function useHostBridge(
   }, []);
 
   useEffect(() => {
+    if (isWindowsLoopbackDashboard()) {
+      let isCancelled = false;
+
+      fetch('/api/v1/dashboard')
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+          return res.json();
+        })
+        .then((data) => {
+          if (!isCancelled) {
+            handleMessageData(data);
+          }
+        })
+        .catch((err) => {
+          console.warn('Failed to fetch initial dashboard state:', err);
+          if (!isCancelled) {
+            setConnected(false);
+          }
+        });
+
+      let eventSource: EventSource | null = null;
+      try {
+        eventSource = new EventSource('/api/v1/events');
+        eventSource.onmessage = (event: MessageEvent) => {
+          if (isCancelled) return;
+          const dataStr = event.data ? String(event.data).trim() : '';
+          if (dataStr && !dataStr.startsWith(':')) {
+            handleMessageData(dataStr);
+          }
+        };
+        eventSource.onerror = () => {
+          if (!isCancelled) {
+            setConnected(false);
+          }
+        };
+      } catch (err) {
+        console.warn('Failed to initialize EventSource:', err);
+      }
+
+      return () => {
+        isCancelled = true;
+        if (eventSource) {
+          eventSource.close();
+        }
+      };
+    }
+
     const handleWindowMessage = (event: MessageEvent) => {
       const pageOrigin = window.location.origin || '';
 
@@ -375,7 +466,37 @@ export function useHostBridge(
       };
       const payloadStr = JSON.stringify(payload);
 
-      if (portRef.current) {
+      if (isWindowsLoopbackDashboard()) {
+        const envelope = {
+          version: '1.0',
+          type: 'action',
+          id: `act_${Math.random().toString(36).substring(2, 10)}`,
+          timestamp: new Date().toISOString(),
+          payload: {
+            action,
+            target_id: targetId,
+          },
+        };
+        fetch('/api/v1/actions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(envelope),
+        })
+          .then((res) => {
+            if (!res.ok) {
+              throw new Error(`HTTP error ${res.status}`);
+            }
+          })
+          .catch((err) => {
+            console.warn('Failed to post action to /api/v1/actions:', err);
+            setConnected(false);
+          })
+          .finally(() => {
+            setPendingAction(null);
+          });
+      } else if (portRef.current) {
         portRef.current.postMessage(payloadStr);
       } else {
         // Dev/Test fallback postMessage

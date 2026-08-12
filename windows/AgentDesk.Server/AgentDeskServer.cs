@@ -10,12 +10,13 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 
 namespace AgentDesk.Server;
 
 public static class AgentDeskServer
 {
-    public static WebApplication Build(string[] args, string? urlOverride = null)
+    public static WebApplication Build(string[] args, string? urlOverride = null, string? dashboardDirectoryOverride = null)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -64,12 +65,27 @@ public static class AgentDeskServer
         builder.Services.AddHostedService<Usage.UsageBackgroundService>();
 
         var app = builder.Build();
-        MapEndpoints(app);
+
+        var dashboardDir = dashboardDirectoryOverride ?? Path.Combine(AppContext.BaseDirectory, "Dashboard");
+        if (Directory.Exists(dashboardDir))
+        {
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(dashboardDir),
+                RequestPath = "/assets"
+            });
+        }
+
+        MapEndpoints(app, dashboardDir);
         return app;
     }
 
-    public static void MapEndpoints(WebApplication app)
+    public static void MapEndpoints(WebApplication app, string? dashboardDir = null)
     {
+        dashboardDir ??= Path.Combine(AppContext.BaseDirectory, "Dashboard");
+
+        app.MapGet("/assets", () => ServeDashboardIndex(dashboardDir));
+
         app.MapGet("/health", () => Results.Ok(new
         {
             status = "ok",
@@ -364,5 +380,13 @@ public static class AgentDeskServer
             context.Response.ContentType = "text/plain";
             return context.Response.WriteAsync("Not Found");
         });
+    }
+
+    private static IResult ServeDashboardIndex(string dashboardDir)
+    {
+        var indexPath = Path.Combine(dashboardDir, "index.html");
+        return File.Exists(indexPath)
+            ? Results.File(indexPath, "text/html")
+            : Results.NotFound("Dashboard assets not found");
     }
 }

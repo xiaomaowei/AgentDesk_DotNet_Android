@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using AgentDesk.Desktop;
+using AgentDesk.Server;
 using Xunit;
 
 namespace AgentDesk.Desktop.Tests;
@@ -417,5 +418,85 @@ public class DesktopUnitTests
         Assert.NotNull(icon);
         Assert.True(icon.Width > 0);
         Assert.True(icon.Height > 0);
+    }
+
+    [Fact]
+    public void DisplayHelper_GetSecondaryScreen_ReturnsNullOrNonPrimaryScreen()
+    {
+        var secondary = DisplayHelper.GetSecondaryScreen();
+        if (secondary != null)
+        {
+            Assert.False(secondary.Primary);
+        }
+    }
+
+    [Fact]
+    public void TrayApplicationContext_ContainsSecondaryDisplayDashboardMenuItem_UncheckedByDefault()
+    {
+        var mockServerHostManager = new ServerHostManager();
+        var mockAdbRunner = new MockAdbCommandRunner();
+        var mockAdbManager = new AdbManager(mockAdbRunner);
+
+        var context = new TrayApplicationContext(mockServerHostManager, mockAdbManager);
+
+        var notifyIconField = typeof(TrayApplicationContext).GetField("_notifyIcon", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        var notifyIcon = notifyIconField?.GetValue(context) as System.Windows.Forms.NotifyIcon;
+
+        Assert.NotNull(notifyIcon);
+        Assert.NotNull(notifyIcon.ContextMenuStrip);
+
+        var item = notifyIcon.ContextMenuStrip.Items
+            .OfType<System.Windows.Forms.ToolStripMenuItem>()
+            .FirstOrDefault(i => i.Text == "Secondary Display Dashboard");
+
+        Assert.NotNull(item);
+        Assert.False(item.Checked);
+
+        context.Dispose();
+    }
+
+    [Fact]
+    public async Task EmbeddedServer_ServesPackagedDashboardAssets()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("n"));
+        Directory.CreateDirectory(tempDir);
+        var subDir = Path.Combine(tempDir, "sub");
+        Directory.CreateDirectory(subDir);
+
+        var dummyIndexPath = Path.Combine(tempDir, "index.html");
+        File.WriteAllText(dummyIndexPath, "<html><body>Dashboard Test</body></html>");
+        var dummyNestedPath = Path.Combine(subDir, "nested.js");
+        File.WriteAllText(dummyNestedPath, "console.log('test');");
+
+        try
+        {
+            await using var app = AgentDeskServer.Build(Array.Empty<string>(), "http://127.0.0.1:0", tempDir);
+            await app.StartAsync();
+
+            var server = app.Services.GetService(typeof(Microsoft.AspNetCore.Hosting.Server.IServer)) as Microsoft.AspNetCore.Hosting.Server.IServer;
+            var address = server?.Features.Get<Microsoft.AspNetCore.Hosting.Server.Features.IServerAddressesFeature>()?.Addresses.First();
+            Assert.NotNull(address);
+
+            using var client = new HttpClient();
+
+            var resIndex = await client.GetAsync($"{address}/assets/index.html");
+            Assert.Equal(HttpStatusCode.OK, resIndex.StatusCode);
+            var html = await resIndex.Content.ReadAsStringAsync();
+            Assert.Contains("Dashboard Test", html);
+
+            var resNested = await client.GetAsync($"{address}/assets/sub/nested.js");
+            Assert.Equal(HttpStatusCode.OK, resNested.StatusCode);
+            var js = await resNested.Content.ReadAsStringAsync();
+            Assert.Contains("console.log('test')", js);
+
+            await app.StopAsync();
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
+            }
+        }
     }
 }

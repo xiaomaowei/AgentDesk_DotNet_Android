@@ -23,7 +23,8 @@ Double-clicking `AgentDesk.Desktop.exe` runs the application silently in the Win
 - **Status Display**: Disabled context menu header showing real-time embedded server and ADB connection state.
 - **Restart Server...**: Recreates the embedded ASP.NET Core host and DI singletons after user confirmation, clearing in-memory session/approval state.
 - **Connect & Launch Android**: Automatically starts the ADB daemon, configures ADB reverse port forwarding (`tcp:8765 tcp:8765`), and launches `com.agentdeck.mobile/.MainActivity`.
-- **Exit**: Performs a bounded graceful shutdown of ADB monitoring, stops and disposes the embedded server host, releases single-instance mutex, and cleans up tray resources.
+- **Secondary Display Dashboard**: Toggles an opt-in borderless WebView2 H5 dashboard window on the first detected non-primary monitor, serving packaged H5 assets from the loopback server (`http://127.0.0.1:8765/assets/index.html`).
+- **Exit**: Performs a bounded graceful shutdown of ADB monitoring, stops and disposes the embedded server host, closes secondary display windows, releases single-instance mutex, and cleans up tray resources.
 
 ## Commands
 
