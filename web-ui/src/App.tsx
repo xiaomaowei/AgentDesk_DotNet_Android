@@ -34,6 +34,8 @@ export const App: React.FC = () => {
             steps={activePayload?.steps}
             currentStep={activePayload?.current_step}
             status={activePayload?.status}
+            message={activePayload?.message}
+            hasPayload={activePayload !== null && activePayload !== undefined}
           />
           <ConversationView payload={activePayload} />
           <ActionDock

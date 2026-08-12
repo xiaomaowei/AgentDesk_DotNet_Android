@@ -152,7 +152,7 @@ describe('H5 Hybrid UI Regression Tests (Acceptance Criteria A-F)', () => {
     expect(screen.getByText('All clean')).toBeInTheDocument();
   });
 
-  test('d. ProgressStepper displays steps, clamps current_step, fallback on completed status, hides when no steps', () => {
+  test('d. ProgressStepper displays steps, clamps current_step, fallback on completed status, and renders single fallback step when steps is empty/null', () => {
     const steps = ['Step 1', 'Step 2', 'Step 3'];
 
     // Normal rendering
@@ -183,14 +183,34 @@ describe('H5 Hybrid UI Regression Tests (Acceptance Criteria A-F)', () => {
     expect(screen.getByLabelText(/任務步驟進度 \(第 1 \/ 3 步\)/)).toBeInTheDocument();
     expect(screen.getByText('Step 1')).toBeInTheDocument();
 
-    // Empty steps -> renders nothing
-    const emptyView = render(<ProgressStepper steps={[]} currentStep={1} status="working" />);
-    expect(emptyView.container.firstChild).toBeNull();
-    const nullView = render(<ProgressStepper steps={null} currentStep={1} status="working" />);
-    expect(nullView.container.firstChild).toBeNull();
+    // Null/empty steps with nonblank message -> fallback step with trimmed message
+    rerender(<ProgressStepper steps={null} status="working" message="  Processing data  " />);
+    expect(screen.getByLabelText(/任務步驟進度 \(第 1 \/ 1 步\)/)).toBeInTheDocument();
+    expect(screen.getByText(/步驟 1\/1：/)).toBeInTheDocument();
+    expect(screen.getByText('Processing data')).toBeInTheDocument();
+
+    // Null/empty steps with blank/empty message -> fallback step with status label
+    rerender(<ProgressStepper steps={[]} status="working" message="   " />);
+    expect(screen.getByText('執行中')).toBeInTheDocument();
+
+    rerender(<ProgressStepper steps={null} status="completed" message="" />);
+    expect(screen.getByText('已完成')).toBeInTheDocument();
+
+    rerender(<ProgressStepper steps={null} status="error" />);
+    expect(screen.getByText('錯誤')).toBeInTheDocument();
+
+    rerender(<ProgressStepper steps={null} status="waiting" />);
+    expect(screen.getByText('等待中')).toBeInTheDocument();
+
+    rerender(<ProgressStepper steps={null} status="idle" />);
+    expect(screen.getByText('待命')).toBeInTheDocument();
+
+    // No payload -> renders nothing
+    const noPayloadView = render(<ProgressStepper hasPayload={false} />);
+    expect(noPayloadView.container.firstChild).toBeNull();
   });
 
-  test('e. App positions ProgressStepper between ActiveStatusBar and ConversationView', () => {
+  test('e. App positions ProgressStepper between ActiveStatusBar and ConversationView, including live-payload without steps and empty state', () => {
     const dashboardWithSteps = {
       ...sampleDashboardWithTurn,
       current: {
@@ -217,16 +237,78 @@ describe('H5 Hybrid UI Regression Tests (Acceptance Criteria A-F)', () => {
       );
     });
 
-    const mainContent = container.querySelector('.content-section')!;
-    const children = Array.from(mainContent.children);
+    let mainContent = container.querySelector('.content-section')!;
+    let children = Array.from(mainContent.children);
 
-    const statusBarIdx = children.findIndex((el) => el.classList.contains('active-status-card'));
-    const stepperIdx = children.findIndex((el) => el.classList.contains('progress-stepper-card'));
-    const conversationIdx = children.findIndex((el) => el.classList.contains('conversation-viewport'));
+    let statusBarIdx = children.findIndex((el) => el.classList.contains('active-status-card'));
+    let stepperIdx = children.findIndex((el) => el.classList.contains('progress-stepper-card'));
+    let conversationIdx = children.findIndex((el) => el.classList.contains('conversation-viewport'));
 
     expect(statusBarIdx).toBeGreaterThan(-1);
     expect(stepperIdx).toBeGreaterThan(statusBarIdx);
     expect(conversationIdx).toBeGreaterThan(stepperIdx);
+
+    // Live-payload without steps (omits steps & current_step)
+    const dashboardWithoutSteps = {
+      ...sampleDashboardWithTurn,
+      current: {
+        ...sampleDashboardWithTurn.current!,
+        payload: {
+          ...sampleDashboardWithTurn.current!.payload,
+          steps: undefined,
+          current_step: undefined,
+          message: 'Running task without steps',
+          status: 'working',
+        },
+      },
+    };
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'dashboard',
+            dashboard: dashboardWithoutSteps,
+            connected: true,
+          }),
+          origin: window.location.origin,
+        })
+      );
+    });
+
+    mainContent = container.querySelector('.content-section')!;
+    children = Array.from(mainContent.children);
+
+    statusBarIdx = children.findIndex((el) => el.classList.contains('active-status-card'));
+    stepperIdx = children.findIndex((el) => el.classList.contains('progress-stepper-card'));
+    conversationIdx = children.findIndex((el) => el.classList.contains('conversation-viewport'));
+
+    expect(statusBarIdx).toBeGreaterThan(-1);
+    expect(stepperIdx).toBeGreaterThan(statusBarIdx);
+    expect(conversationIdx).toBeGreaterThan(stepperIdx);
+    expect(screen.getByText('Running task without steps')).toBeInTheDocument();
+    expect(screen.getByText(/步驟 1\/1：/)).toBeInTheDocument();
+
+    // No active payload state
+    const dashboardNoActive = {
+      projects: [],
+      current: null,
+    };
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'dashboard',
+            dashboard: dashboardNoActive,
+            connected: true,
+          }),
+          origin: window.location.origin,
+        })
+      );
+    });
+
+    expect(container.querySelector('.progress-stepper-card')).toBeNull();
   });
 
   test('f. Responsive CSS enforces 3-layer nowrap in landscape media query block and compact sidebar width', () => {

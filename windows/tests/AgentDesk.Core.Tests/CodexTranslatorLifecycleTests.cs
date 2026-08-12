@@ -333,4 +333,253 @@ public class CodexTranslatorLifecycleTests
         var updateTerra = translator.Translate(docTerra.RootElement);
         Assert.Contains("Terra Low", updateTerra.State.Models);
     }
+
+    [Fact]
+    public void Translate_UpdatePlan_InitialFourStepPlan_ProgressUpdate_AllCompleted_Retention_And_NewTurnReset()
+    {
+        var translator = new CodexTranslator();
+        const string sessionId = "sess_plan_01";
+
+        // 1. Initial UserPromptSubmit
+        using (var doc = JsonDocument.Parse($$"""{"hook_event_name":"UserPromptSubmit","session_id":"{{sessionId}}","prompt":"Do task"}"""))
+        {
+            var update = translator.Translate(doc.RootElement);
+            Assert.Null(update.State.Steps);
+            Assert.Null(update.State.CurrentStep);
+        }
+
+        // 2. Initial four-step plan (Step 1 completed, Step 2 in_progress, Step 3 pending, Step 4 pending)
+        using (var doc = JsonDocument.Parse($$"""
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "{{sessionId}}",
+            "tool_name": "update_plan",
+            "tool_input": {
+                "plan": [
+                    { "step": "  1. Initial research  ", "status": "completed" },
+                    { "step": "2. Implement changes", "status": "in_progress" },
+                    { "step": "3. Add unit tests", "status": "pending" },
+                    { "step": "4. Verify build", "status": "pending" }
+                ]
+            }
+        }
+        """))
+        {
+            var update = translator.Translate(doc.RootElement);
+            Assert.NotNull(update.State.Steps);
+            Assert.Equal(4, update.State.Steps.Count);
+            Assert.Equal("1. Initial research", update.State.Steps[0]);
+            Assert.Equal("2. Implement changes", update.State.Steps[1]);
+            Assert.Equal("3. Add unit tests", update.State.Steps[2]);
+            Assert.Equal("4. Verify build", update.State.Steps[3]);
+            Assert.Equal(2, update.State.CurrentStep);
+        }
+
+        // 3. Progress update (Step 2 completed, Step 3 in_progress)
+        using (var doc = JsonDocument.Parse($$"""
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "{{sessionId}}",
+            "tool_name": "update_plan",
+            "tool_input": {
+                "plan": [
+                    { "step": "1. Initial research", "status": "completed" },
+                    { "step": "2. Implement changes", "status": "completed" },
+                    { "step": "3. Add unit tests", "status": "in_progress" },
+                    { "step": "4. Verify build", "status": "pending" }
+                ]
+            }
+        }
+        """))
+        {
+            var update = translator.Translate(doc.RootElement);
+            Assert.Equal(4, update.State.Steps?.Count);
+            Assert.Equal(3, update.State.CurrentStep);
+        }
+
+        // 4. All-completed state (All 4 steps completed)
+        using (var doc = JsonDocument.Parse($$"""
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "{{sessionId}}",
+            "tool_name": "update_plan",
+            "tool_input": {
+                "plan": [
+                    { "step": "1. Initial research", "status": "completed" },
+                    { "step": "2. Implement changes", "status": "completed" },
+                    { "step": "3. Add unit tests", "status": "completed" },
+                    { "step": "4. Verify build", "status": "completed" }
+                ]
+            }
+        }
+        """))
+        {
+            var update = translator.Translate(doc.RootElement);
+            Assert.Equal(4, update.State.Steps?.Count);
+            Assert.Equal(4, update.State.CurrentStep);
+        }
+
+        // 5. Retention on later non-plan PreToolUse event
+        using (var doc = JsonDocument.Parse($$"""
+        {
+            "hook_event_name": "PreToolUse",
+            "session_id": "{{sessionId}}",
+            "tool_name": "exec_command",
+            "tool_input": { "command": "git status" }
+        }
+        """))
+        {
+            var update = translator.Translate(doc.RootElement);
+            Assert.NotNull(update.State.Steps);
+            Assert.Equal(4, update.State.Steps.Count);
+            Assert.Equal(4, update.State.CurrentStep);
+        }
+
+        // 6. Retention on Stop event
+        using (var doc = JsonDocument.Parse($$"""
+        {
+            "hook_event_name": "Stop",
+            "session_id": "{{sessionId}}",
+            "last_assistant_message": "All done"
+        }
+        """))
+        {
+            var update = translator.Translate(doc.RootElement);
+            Assert.NotNull(update.State.Steps);
+            Assert.Equal(4, update.State.Steps.Count);
+            Assert.Equal(4, update.State.CurrentStep);
+        }
+
+        // 7. Reset on new turn (UserPromptSubmit)
+        using (var doc = JsonDocument.Parse($$"""{"hook_event_name":"UserPromptSubmit","session_id":"{{sessionId}}","prompt":"New prompt"}"""))
+        {
+            var update = translator.Translate(doc.RootElement);
+            Assert.Null(update.State.Steps);
+            Assert.Null(update.State.CurrentStep);
+        }
+    }
+
+    [Fact]
+    public void Translate_UpdatePlan_AcceptsTitleAndNameAliases_AndStringifiedToolInput()
+    {
+        var translator = new CodexTranslator();
+        const string sessionId = "sess_plan_aliases";
+
+        using var doc = JsonDocument.Parse($$"""
+        {
+            "hook_event_name": "PreToolUse",
+            "session_id": "{{sessionId}}",
+            "tool_name": "update_plan",
+            "tool_input": "{\"plan\": [{\"title\": \"Step A\", \"status\": \"pending\"}, {\"name\": \"Step B\", \"status\": \"pending\"}]}"
+        }
+        """);
+
+        var update = translator.Translate(doc.RootElement);
+        Assert.NotNull(update.State.Steps);
+        Assert.Equal(2, update.State.Steps.Count);
+        Assert.Equal("Step A", update.State.Steps[0]);
+        Assert.Equal("Step B", update.State.Steps[1]);
+        Assert.Equal(1, update.State.CurrentStep);
+    }
+
+    [Fact]
+    public void Translate_UpdatePlan_MalformedInput_DoesNotCrashOrCorruptState()
+    {
+        var translator = new CodexTranslator();
+        const string sessionId = "sess_malformed";
+
+        // 1. Establish valid plan
+        using (var doc = JsonDocument.Parse($$"""
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "{{sessionId}}",
+            "tool_input": {
+                "plan": [
+                    { "step": "Valid step", "status": "in_progress" }
+                ]
+            }
+        }
+        """))
+        {
+            var update = translator.Translate(doc.RootElement);
+            Assert.Equal(1, update.State.Steps?.Count);
+            Assert.Equal(1, update.State.CurrentStep);
+        }
+
+        // 2. Send malformed plan (empty array / objects with blank names)
+        using (var doc = JsonDocument.Parse($$"""
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "{{sessionId}}",
+            "tool_input": {
+                "plan": [
+                    { "step": "   ", "status": "pending" }
+                ]
+            }
+        }
+        """))
+        {
+            var update = translator.Translate(doc.RootElement);
+            // Should retain previous valid plan
+            Assert.Equal(1, update.State.Steps?.Count);
+            Assert.Equal("Valid step", update.State.Steps?[0]);
+        }
+    }
+
+    [Fact]
+    public void Translate_SessionEnd_ClearsPlanSnapshot()
+    {
+        var translator = new CodexTranslator();
+        const string sessionId = "sess_cleanup";
+
+        // 1. Establish valid plan
+        using (var doc = JsonDocument.Parse($$"""
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "{{sessionId}}",
+            "tool_input": {
+                "plan": [ { "step": "Step 1", "status": "completed" } ]
+            }
+        }
+        """))
+        {
+            var update = translator.Translate(doc.RootElement);
+            Assert.NotNull(update.State.Steps);
+        }
+
+        // 2. SessionEnd event
+        using (var doc = JsonDocument.Parse($$"""{"hook_event_name":"SessionEnd","session_id":"{{sessionId}}"}"""))
+        {
+            var update = translator.Translate(doc.RootElement);
+            Assert.Null(update.State.Steps);
+            Assert.Null(update.State.CurrentStep);
+            Assert.True(update.RemoveSession);
+        }
+    }
+
+    [Fact]
+    public void Translate_UpdatePlan_TrimsAndLimitsLengthAndCount()
+    {
+        var translator = new CodexTranslator();
+        const string sessionId = "sess_limits";
+
+        var longName = new string('x', 300);
+        var planItemsJson = string.Join(",", Enumerable.Range(1, 25).Select(i => $$"""{"step": "Step {{i}} {{longName}}", "status": "pending"}"""));
+
+        using var doc = JsonDocument.Parse($$"""
+        {
+            "hook_event_name": "PostToolUse",
+            "session_id": "{{sessionId}}",
+            "tool_input": {
+                "plan": [ {{planItemsJson}} ]
+            }
+        }
+        """);
+
+        var update = translator.Translate(doc.RootElement);
+        Assert.NotNull(update.State.Steps);
+        Assert.Equal(20, update.State.Steps.Count);
+        Assert.Equal(200, update.State.Steps[0].Length);
+        Assert.Equal(1, update.State.CurrentStep);
+    }
 }

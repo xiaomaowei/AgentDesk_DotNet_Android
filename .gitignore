@@ -46,3 +46,6 @@ Desktop.ini
 *.zip
 SHA256SUMS.txt
 output/
+
+# Company-local Windows publish & code-signing script
+/Publish-AgentDeskWindows_senao.ps1

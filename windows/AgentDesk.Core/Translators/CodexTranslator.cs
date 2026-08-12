@@ -17,6 +17,7 @@ public class CodexTranslator
     private readonly Dictionary<string, CurrentTurn> _currentTurns = new();
     private readonly Dictionary<string, List<string>> _modelHistory = new();
     private readonly Dictionary<string, string> _lastCommentaryId = new();
+    private readonly Dictionary<string, PlanSnapshot> _planSnapshots = new();
     private readonly LinkedList<string> _sessionLru = new();
     private readonly object _lock = new();
     private readonly string _sessionIndexPath;
@@ -50,6 +51,7 @@ public class CodexTranslator
 
             AccumulateModels(sessionId, eventElement, parseResult);
             UpdateCurrentTurn(sessionId, eventName, eventElement, parseResult);
+            UpdatePlanSnapshot(sessionId, eventName, eventElement);
 
             if (removeSession)
             {
@@ -58,6 +60,14 @@ public class CodexTranslator
 
             var models = _modelHistory.TryGetValue(sessionId, out var history) ? new List<string>(history) : new List<string>();
             _currentTurns.TryGetValue(sessionId, out var currentTurn);
+
+            List<string>? steps = null;
+            int? currentStep = null;
+            if (_planSnapshots.TryGetValue(sessionId, out var planSnapshot))
+            {
+                steps = new List<string>(planSnapshot.Steps);
+                currentStep = planSnapshot.CurrentStep;
+            }
 
             var state = new AgentState
             {
@@ -69,6 +79,8 @@ public class CodexTranslator
                 Message = message.Length > 180 ? message[..180] : message,
                 StartedAt = DateTimeOffset.UtcNow,
                 ConversationTokens = parseResult.ConversationTokens,
+                Steps = steps,
+                CurrentStep = currentStep,
                 RequiresAction = waiting,
                 Actions = waiting ? new List<string> { DeviceAction.Approve, DeviceAction.Reject } : new List<string>(),
                 TargetId = null,
@@ -114,6 +126,7 @@ public class CodexTranslator
         _currentTurns.Remove(sessionId);
         _modelHistory.Remove(sessionId);
         _lastCommentaryId.Remove(sessionId);
+        _planSnapshots.Remove(sessionId);
         var node = _sessionLru.Find(sessionId);
         if (node != null)
         {
@@ -599,5 +612,183 @@ public class CodexTranslator
             }
         }
         return string.Empty;
+    }
+
+    private sealed record PlanSnapshot
+    {
+        public required List<string> Steps { get; init; }
+        public required int CurrentStep { get; init; }
+    }
+
+    private sealed record PlanItemInfo(string Step, string? Status);
+
+    private void UpdatePlanSnapshot(string sessionId, string eventName, JsonElement el)
+    {
+        if (eventName == "UserPromptSubmit")
+        {
+            _planSnapshots.Remove(sessionId);
+            return;
+        }
+
+        var parsedSnapshot = TryParsePlanSnapshot(el);
+        if (parsedSnapshot != null)
+        {
+            _planSnapshots[sessionId] = parsedSnapshot;
+        }
+    }
+
+    private static PlanSnapshot? TryParsePlanSnapshot(JsonElement el)
+    {
+        try
+        {
+            JsonElement? planArray = null;
+
+            if (el.ValueKind == JsonValueKind.Object)
+            {
+                if (el.TryGetProperty("tool_input", out var toolInput))
+                {
+                    if (toolInput.ValueKind == JsonValueKind.Object)
+                    {
+                        if (toolInput.TryGetProperty("plan", out var planProp) && planProp.ValueKind == JsonValueKind.Array)
+                        {
+                            planArray = planProp;
+                        }
+                    }
+                    else if (toolInput.ValueKind == JsonValueKind.String)
+                    {
+                        try
+                        {
+                            using var doc = JsonDocument.Parse(toolInput.GetString()!);
+                            if (doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("plan", out var planProp) && planProp.ValueKind == JsonValueKind.Array)
+                            {
+                                planArray = planProp.Clone();
+                            }
+                        }
+                        catch
+                        {
+                        }
+                    }
+                }
+
+                if (!planArray.HasValue && el.TryGetProperty("plan", out var directPlan) && directPlan.ValueKind == JsonValueKind.Array)
+                {
+                    planArray = directPlan;
+                }
+
+                if (!planArray.HasValue && el.TryGetProperty("steps", out var directSteps) && directSteps.ValueKind == JsonValueKind.Array)
+                {
+                    planArray = directSteps;
+                }
+            }
+
+            if (!planArray.HasValue)
+            {
+                return null;
+            }
+
+            var items = new List<PlanItemInfo>();
+            foreach (var item in planArray.Value.EnumerateArray())
+            {
+                if (items.Count >= 20) break;
+
+                string? stepName = null;
+                string? status = null;
+
+                if (item.ValueKind == JsonValueKind.Object)
+                {
+                    stepName = GetStringProperty(item, "step")
+                            ?? GetStringProperty(item, "title")
+                            ?? GetStringProperty(item, "name");
+                    status = GetStringProperty(item, "status");
+                }
+                else if (item.ValueKind == JsonValueKind.String)
+                {
+                    stepName = item.GetString();
+                }
+
+                var trimmedName = stepName?.Trim();
+                if (string.IsNullOrEmpty(trimmedName))
+                {
+                    continue;
+                }
+
+                if (trimmedName.Length > 200)
+                {
+                    trimmedName = Truncate(trimmedName, 200);
+                }
+
+                items.Add(new PlanItemInfo(trimmedName, status?.Trim()));
+            }
+
+            if (items.Count == 0)
+            {
+                return null;
+            }
+
+            var stepsList = items.Select(i => i.Step).ToList();
+            int currentStepIndex = ComputeCurrentStepIndex(items);
+
+            return new PlanSnapshot
+            {
+                Steps = stepsList,
+                CurrentStep = currentStepIndex
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static int ComputeCurrentStepIndex(List<PlanItemInfo> items)
+    {
+        if (items.Count == 0) return 1;
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (IsInProgressStatus(items[i].Status))
+            {
+                return Math.Clamp(i + 1, 1, items.Count);
+            }
+        }
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (IsPendingStatus(items[i].Status))
+            {
+                return Math.Clamp(i + 1, 1, items.Count);
+            }
+        }
+
+        return Math.Clamp(items.Count, 1, items.Count);
+    }
+
+    private static bool IsInProgressStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return false;
+        return status.Equals("in_progress", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("in-progress", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("working", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("running", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("active", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCompletedStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return false;
+        return status.Equals("completed", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("done", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("complete", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("finished", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsPendingStatus(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status)) return true;
+        if (IsInProgressStatus(status) || IsCompletedStatus(status)) return false;
+        return status.Equals("pending", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("todo", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("not_started", StringComparison.OrdinalIgnoreCase)
+            || status.Equals("not-started", StringComparison.OrdinalIgnoreCase);
     }
 }
