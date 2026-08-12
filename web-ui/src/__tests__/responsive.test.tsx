@@ -126,4 +126,57 @@ describe('Responsive Same-DOM Contract', () => {
     expect(modelsMatch).not.toBeNull();
     expect(modelsMatch![1]).toContain('flex-wrap: wrap');
   });
+
+  test('conversation container enforces overflow-x hidden, wrapping, and dark scrollbar contract', async () => {
+    const fs = await import('fs');
+    const path = await import('path');
+    const { fileURLToPath } = await import('url');
+    const currentFilePath = fileURLToPath(import.meta.url);
+    const cssPath = path.resolve(path.dirname(currentFilePath), '../index.css');
+    const cssContent = fs.readFileSync(cssPath, 'utf-8');
+
+    // Rule 1: .conversation-container explicitly sets overflow-y: auto and overflow-x: hidden
+    const containerMatch = cssContent.match(/\.conversation-container\s*\{([^}]+)\}/);
+    expect(containerMatch).not.toBeNull();
+    const containerBlock = containerMatch![1];
+    expect(containerBlock).toContain('overflow-y: auto');
+    expect(containerBlock).toContain('overflow-x: hidden');
+    expect(containerBlock).toContain('min-width: 0');
+    expect(containerBlock).toContain('max-width: 100%');
+
+    // Rule 2: scrollbar-width and scrollbar-color using existing dark variables
+    expect(containerBlock).toContain('scrollbar-width: thin');
+    expect(containerBlock).toContain('scrollbar-color: var(--border) var(--bg-darker)');
+
+    // Rule 3: webkit scrollbar rules for .conversation-container
+    expect(cssContent).toContain('.conversation-container::-webkit-scrollbar');
+    expect(cssContent).toContain('.conversation-container::-webkit-scrollbar-track');
+    expect(cssContent).toContain('.conversation-container::-webkit-scrollbar-thumb');
+
+    const webkitTrackMatch = cssContent.match(/\.conversation-container::-webkit-scrollbar-track\s*\{([^}]+)\}/);
+    expect(webkitTrackMatch).not.toBeNull();
+    expect(webkitTrackMatch![1]).toContain('var(--bg-darker)');
+
+    const webkitThumbMatch = cssContent.match(/\.conversation-container::-webkit-scrollbar-thumb\s*\{([^}]+)\}/);
+    expect(webkitThumbMatch).not.toBeNull();
+    expect(webkitThumbMatch![1]).toContain('var(--border)');
+
+    const webkitThumbHoverMatch = cssContent.match(/\.conversation-container::-webkit-scrollbar-thumb:hover\s*\{([^}]+)\}/);
+    expect(webkitThumbHoverMatch).not.toBeNull();
+    expect(webkitThumbHoverMatch![1]).toContain('var(--text-dim)');
+
+    // Rule 4: horizontal webkit scrollbar is hidden
+    const horizontalMatch = cssContent.match(/\.conversation-container::-webkit-scrollbar:horizontal\s*\{([^}]+)\}/);
+    expect(horizontalMatch).not.toBeNull();
+    const horizontalBlock = horizontalMatch![1];
+    expect(horizontalBlock).toMatch(/display:\s*none|height:\s*0/);
+
+    // Rule 5: Markdown code block uses pre-wrap and disables horizontal scrollbar
+    const codeBlockMatch = cssContent.match(/\.markdown-body\s+pre\.code-block\s*\{([^}]+)\}/);
+    expect(codeBlockMatch).not.toBeNull();
+    const codeBlock = codeBlockMatch![1];
+    expect(codeBlock).toContain('white-space: pre-wrap');
+    expect(codeBlock).toContain('overflow-x: hidden');
+    expect(codeBlock).not.toContain('overflow-x: auto');
+  });
 });

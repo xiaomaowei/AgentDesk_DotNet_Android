@@ -503,11 +503,42 @@ html, body, #root {
 .conversation-container {
   flex: 1;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--bg-darker);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.conversation-container::-webkit-scrollbar {
+  width: 8px;
+  height: 0;
+}
+
+.conversation-container::-webkit-scrollbar:horizontal {
+  display: none;
+  height: 0;
+}
+
+.conversation-container::-webkit-scrollbar-track {
+  background: var(--bg-darker);
+  border-radius: 4px;
+}
+
+.conversation-container::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 4px;
+}
+
+.conversation-container::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-dim);
 }
 
 .empty-conversation {
@@ -539,6 +570,8 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .user-prompt-card {
@@ -546,6 +579,8 @@ html, body, #root {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 12px 14px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .prompt-header {
@@ -573,6 +608,8 @@ html, body, #root {
 
 .turn-item {
   border-radius: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .turn-commentary {
@@ -782,6 +819,8 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .legacy-events-header {
@@ -883,6 +922,8 @@ html, body, #root {
 .event-content {
   margin-top: 6px;
   font-size: 0.85rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* Floating New Progress Badge */
@@ -951,6 +992,13 @@ html, body, #root {
 }
 
 /* Safe Markdown Styling */
+.markdown-body {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .markdown-body p {
   margin-bottom: 0.5em;
 }
@@ -964,6 +1012,7 @@ html, body, #root {
   text-decoration: underline;
 }
 
+.markdown-body .inline-code,
 .markdown-body inline-code {
   background-color: var(--bg-darker);
   border: 1px solid var(--border);
@@ -971,6 +1020,8 @@ html, body, #root {
   border-radius: 4px;
   font-family: var(--font-mono);
   font-size: 0.85em;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .markdown-body pre.code-block {
@@ -978,10 +1029,21 @@ html, body, #root {
   border: 1px solid var(--border);
   padding: 10px;
   border-radius: 6px;
-  overflow-x: auto;
+  overflow-x: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   font-family: var(--font-mono);
   font-size: 0.85rem;
   margin: 8px 0;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.markdown-body pre.code-block code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* Accessibility: Reduced Motion Support */
