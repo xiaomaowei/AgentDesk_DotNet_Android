@@ -81,6 +81,8 @@ Create a GitHub Issue before implementation when the work is medium or large, cr
 
 The Issue should be written by Codex before agy starts. agy reads the Issue from GitHub, confirms the repository and branch context, and implements the contract. Do not make agy reconstruct the architecture from a short title or infer missing acceptance criteria.
 
+Every GitHub Issue created for implementation must have at least one appropriate existing repository label before handoff to agy. Prefer type and area labels when available. If no suitable existing label exists, explicitly report that instead of silently handing off an unlabeled Issue.
+
 Use an Epic or Parent Issue for a large outcome, then use child Issues for independently deliverable slices. Link all child Issues and record dependencies explicitly.
 
 ### Routing decision
@@ -123,12 +125,11 @@ The Issue must identify the intended outcome, the current problem or behavior, t
 
 ## agy model routing
 
-Keep the existing agy model routing and use the established model names:
+Claude is temporarily disabled for agy. All agy tasks, including complex work, must use an available Gemini model (such as Gemini 3.7 Flash). Never invoke Claude while disabled.
 
-- Gemini 3.6 Flash remains the efficient route for small, routine, localized, and clearly specified implementation work.
-- Claude Sonnet 4.6 remains the route for complex reasoning, cross-file or cross-module work, difficult debugging, and implementation tasks requiring broader code understanding.
+If no suitable Gemini model is available, treat agy as unavailable and follow the documented Codex Implementation Fallback gate.
 
-The model choice changes the implementation worker, not the contract owner. Codex still defines the scope, constraints, acceptance criteria, and review boundary for both models. A project-specific override may select the other existing agy model when repository evidence or task risk requires it.
+The model choice changes the implementation worker, not the contract owner. Codex still defines the scope, constraints, acceptance criteria, and review boundary.
 
 ## agy PowerShell 7 invocation
 
@@ -221,7 +222,7 @@ User
 Codex SOL High
   ↓ analysis, architecture, plan, decomposition, contract, routing
 Direct Task ───────────────┐
-GitHub Issue / child Issue ─┤→ agy (Gemini 3.6 Flash or Claude Sonnet 4.6)
+GitHub Issue / child Issue ─┤→ agy (Gemini model)
                             └→ Codex Luna/Terra/Sol fallback only when agy is unavailable
   ↓ implementation evidence
 Codex SOL High

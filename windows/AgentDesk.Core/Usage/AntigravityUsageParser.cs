@@ -65,6 +65,59 @@ public static class AntigravityUsageParser
             string line = rawLine.Trim();
             if (string.IsNullOrEmpty(line)) continue;
 
+            // Handle tab-delimited print mode format: e.g. Group<TAB>Window<TAB>Percent/Status<TAB>ResetTime
+            if (line.Contains('\t'))
+            {
+                FlushBucket();
+                var parts = line.Split('\t').Select(p => p.Trim()).ToArray();
+                if (parts.Length >= 2)
+                {
+                    string group = parts[0];
+                    string windowCol = parts[1];
+                    string statusOrPercentCol = parts.Length > 2 ? parts[2] : "";
+                    string refreshOrDetailCol = parts.Length > 3 ? parts[3] : "";
+
+                    string? window = NormalizeWindow(windowCol);
+                    if (window != null)
+                    {
+                        int? percent = null;
+                        string refresh = "";
+
+                        if (IsDisabledStatus(statusOrPercentCol) || IsDisabledStatus(refreshOrDetailCol) || IsDisabledStatus(windowCol))
+                        {
+                            refresh = "disabled";
+                            percent = null;
+                        }
+                        else
+                        {
+                            percent = ExtractPercent(statusOrPercentCol) ?? ExtractPercent(refreshOrDetailCol) ?? ExtractPercent(windowCol);
+
+                            if (!string.IsNullOrEmpty(refreshOrDetailCol))
+                            {
+                                refresh = refreshOrDetailCol;
+                            }
+                            else if (percent.HasValue && !string.IsNullOrEmpty(statusOrPercentCol) && !PercentRegex.IsMatch(statusOrPercentCol) && !double.TryParse(statusOrPercentCol.TrimEnd('%').Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out _))
+                            {
+                                refresh = statusOrPercentCol;
+                            }
+                        }
+
+                        if (percent.HasValue || refresh.Equals("disabled", StringComparison.OrdinalIgnoreCase))
+                        {
+                            buckets.Add(new UsageBucket
+                            {
+                                Group = group,
+                                Window = window,
+                                RemainingPercent = percent.HasValue ? Math.Clamp(percent.Value, 0, 100) : null,
+                                RefreshText = refresh
+                            });
+                        }
+                    }
+                }
+                continue;
+            }
+
+            // Legacy interactive format parsing
             if (Regex.IsMatch(line, @"^Models within this group:\s*(.+)$", RegexOptions.IgnoreCase))
             {
                 continue;
@@ -166,6 +219,39 @@ public static class AntigravityUsageParser
         };
     }
 
+    private static string? NormalizeWindow(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        if (text.Contains("weekly", StringComparison.OrdinalIgnoreCase))
+        {
+            return "weekly";
+        }
+        if (text.Contains("five", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("5-hour", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("5 hour", StringComparison.OrdinalIgnoreCase) ||
+            text.Contains("5h", StringComparison.OrdinalIgnoreCase))
+        {
+            return "five-hour";
+        }
+        return null;
+    }
+
+    private static int? ExtractPercent(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var match = PercentRegex.Match(text);
+        if (match.Success && double.TryParse(match.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var pVal))
+        {
+            return (int)pVal;
+        }
+        string trimmed = text.Trim();
+        if (double.TryParse(trimmed.TrimEnd('%').Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var num) && num >= 0 && num <= 100)
+        {
+            return (int)num;
+        }
+        return null;
+    }
+
     private static bool IsDisabledStatus(string text)
     {
         if (string.IsNullOrWhiteSpace(text)) return false;
@@ -173,7 +259,9 @@ public static class AntigravityUsageParser
         return trimmed.Equals("disabled", StringComparison.OrdinalIgnoreCase) ||
                trimmed.Equals("(disabled)", StringComparison.OrdinalIgnoreCase) ||
                trimmed.Equals("quota disabled", StringComparison.OrdinalIgnoreCase) ||
-               Regex.IsMatch(trimmed, @"^disabled\s*:", RegexOptions.IgnoreCase);
+               trimmed.Equals("not available", StringComparison.OrdinalIgnoreCase) ||
+               trimmed.Equals("n/a", StringComparison.OrdinalIgnoreCase) ||
+               Regex.IsMatch(trimmed, @"^disabled\b", RegexOptions.IgnoreCase);
     }
 
     private static bool IsGroupHeading(string line)

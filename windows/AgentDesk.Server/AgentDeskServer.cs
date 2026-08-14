@@ -59,7 +59,7 @@ public static class AgentDeskServer
 
         builder.Services.AddHttpClient();
         builder.Services.AddSingleton<Usage.ICodexUsageReader, Usage.CodexUsageReader>();
-        builder.Services.AddSingleton<Usage.IAntigravityRunner, Usage.ConPtyAntigravityRunner>();
+        builder.Services.AddSingleton<Usage.IAntigravityRunner, Usage.PowerShellAntigravityRunner>();
         builder.Services.AddSingleton<Usage.IAntigravityUsageReader, Usage.AntigravityUsageReader>();
         builder.Services.AddSingleton<Usage.UsageService>();
         builder.Services.AddHostedService<Usage.UsageBackgroundService>();

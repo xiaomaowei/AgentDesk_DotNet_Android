@@ -9,6 +9,242 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Get-AdbPort5037ListenerPid {
+    try {
+        $conns = @(Get-NetTCPConnection -LocalPort 5037 -State Listen -ErrorAction SilentlyContinue)
+        if ($conns.Count -gt 0 -and $conns[0].OwningProcess) {
+            return [int]$conns[0].OwningProcess
+        }
+    } catch {}
+
+    try {
+        $netstat = netstat -ano 2>$null | Where-Object { $_ -match ':5037\s+.*LISTENING\s+(\d+)' }
+        if ($netstat) {
+            foreach ($line in $netstat) {
+                if ($line -match '\s+(\d+)\s*$') {
+                    $pVal = [int]$Matches[1]
+                    if ($pVal -gt 0) { return $pVal }
+                }
+            }
+        }
+    } catch {}
+
+    return $null
+}
+
+function Get-ProcessExecutablePath {
+    param([int]$ProcessId)
+
+    try {
+        $cimProc = Get-CimInstance -ClassName Win32_Process -Filter "ProcessId = $ProcessId" -ErrorAction SilentlyContinue
+        if ($cimProc -and $cimProc.ExecutablePath) {
+            return [System.IO.Path]::GetFullPath($cimProc.ExecutablePath)
+        }
+    } catch {}
+
+    try {
+        $gp = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+        if ($gp -and $gp.Path) {
+            return [System.IO.Path]::GetFullPath($gp.Path)
+        }
+    } catch {}
+
+    return $null
+}
+
+function Find-AdbExecutable {
+    $candidates = @()
+
+    $pathCmd = Get-Command adb.exe -ErrorAction SilentlyContinue
+    if (-not $pathCmd) {
+        $pathCmd = Get-Command adb -ErrorAction SilentlyContinue
+    }
+    if ($pathCmd -and $pathCmd.Source) {
+        $candidates += $pathCmd.Source
+    }
+
+    if ($env:ANDROID_HOME) {
+        $candidates += Join-Path $env:ANDROID_HOME "platform-tools\adb.exe"
+    }
+    if ($env:ANDROID_SDK_ROOT) {
+        $candidates += Join-Path $env:ANDROID_SDK_ROOT "platform-tools\adb.exe"
+    }
+    if ($env:LOCALAPPDATA) {
+        $candidates += Join-Path $env:LOCALAPPDATA "Android\Sdk\platform-tools\adb.exe"
+    }
+
+    foreach ($cand in $candidates) {
+        if ($cand -and (Test-Path -LiteralPath $cand)) {
+            try {
+                return [System.IO.Path]::GetFullPath($cand)
+            } catch {
+                return $cand
+            }
+        }
+    }
+    return $null
+}
+
+function Invoke-AdbProcess {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AdbPath,
+        [Parameter(Mandatory = $true)]
+        [string]$Arguments,
+        [int]$TimeoutMilliseconds = 5000
+    )
+
+    $pinfo = New-Object System.Diagnostics.ProcessStartInfo
+    $pinfo.FileName = $AdbPath
+    $pinfo.Arguments = $Arguments
+    $pinfo.UseShellExecute = $false
+    $pinfo.RedirectStandardOutput = $true
+    $pinfo.RedirectStandardError = $true
+    $pinfo.CreateNoWindow = $true
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $pinfo
+
+    $timedOut = $false
+    $exitCode = -1
+    $output = ""
+    $error = ""
+
+    try {
+        if ($process.Start()) {
+            $procId = $process.Id
+            $outTask = $process.StandardOutput.ReadToEndAsync()
+            $errTask = $process.StandardError.ReadToEndAsync()
+
+            if (-not $process.WaitForExit($TimeoutMilliseconds)) {
+                $timedOut = $true
+                try {
+                    if ($procId -gt 0) {
+                        $tkStartInfo = New-Object System.Diagnostics.ProcessStartInfo
+                        $tkStartInfo.FileName = "taskkill.exe"
+                        $tkStartInfo.Arguments = "/F /T /PID $procId"
+                        $tkStartInfo.CreateNoWindow = $true
+                        $tkStartInfo.UseShellExecute = $false
+                        $tkProc = [System.Diagnostics.Process]::Start($tkStartInfo)
+                        if ($tkProc) {
+                            $tkProc.WaitForExit(1000)
+                            $tkProc.Dispose()
+                        }
+                    }
+                } catch {}
+
+                try {
+                    if (-not $process.HasExited) {
+                        $process.Kill()
+                    }
+                } catch {}
+            } else {
+                $exitCode = $process.ExitCode
+            }
+
+            if ($outTask -and $outTask.Wait(500)) {
+                $output = $outTask.Result
+            }
+            if ($errTask -and $errTask.Wait(500)) {
+                $error = $errTask.Result
+            }
+        }
+    } catch {
+        $error = $_.Exception.Message
+    } finally {
+        $process.Dispose()
+    }
+
+    return [PSCustomObject]@{
+        ExitCode = $exitCode
+        Output   = $output
+        Error    = $error
+        TimedOut = $timedOut
+    }
+}
+
+function Invoke-AdbRecovery {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AdbPath
+    )
+
+    Write-Host "Recovering ADB server before Desktop launch..." -ForegroundColor Cyan
+
+    $maxAttempts = 3
+    $recovered = $false
+    $lastErrorMsg = ""
+
+    $killTimeoutMs = 5000
+    $startTimeoutMs = 15000
+    $devicesTimeoutMs = 10000
+
+    $killTimeoutSec = [int]($killTimeoutMs / 1000)
+    $startTimeoutSec = [int]($startTimeoutMs / 1000)
+    $devicesTimeoutSec = [int]($devicesTimeoutMs / 1000)
+
+    for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+        if ($attempt -gt 1) {
+            Write-Host "ADB recovery retry $attempt of $maxAttempts..." -ForegroundColor Yellow
+        }
+
+        $killRes = Invoke-AdbProcess -AdbPath $AdbPath -Arguments "kill-server" -TimeoutMilliseconds $killTimeoutMs
+        if ($killRes.TimedOut) {
+            Write-Warning "ADB kill-server timed out after $killTimeoutSec seconds."
+        }
+
+        $cleared = $false
+        for ($i = 0; $i -lt 10; $i++) {
+            $listenerPid = Get-AdbPort5037ListenerPid
+            if (-not $listenerPid) {
+                $cleared = $true
+                break
+            }
+            Start-Sleep -Milliseconds 300
+        }
+
+        if (-not $cleared) {
+            $listenerPid = Get-AdbPort5037ListenerPid
+            if ($listenerPid) {
+                $listenerExe = Get-ProcessExecutablePath -ProcessId $listenerPid
+                if ($listenerExe -and [string]::Equals($listenerExe, $AdbPath, [StringComparison]::OrdinalIgnoreCase)) {
+                    Write-Warning "ADB kill-server did not clear TCP port 5037. Force-stopping matching adb.exe (PID $listenerPid)..."
+                    Stop-Process -Id $listenerPid -Force -ErrorAction SilentlyContinue
+                    Start-Sleep -Milliseconds 500
+                } else {
+                    $procDesc = if ($listenerExe) { "$listenerExe (PID $listenerPid)" } else { "PID $listenerPid" }
+                    $lastErrorMsg = "TCP port 5037 is held by an unrelated process: $procDesc. Cannot stop unrelated process."
+                    Write-Warning $lastErrorMsg
+                }
+            }
+        }
+
+        $startRes = Invoke-AdbProcess -AdbPath $AdbPath -Arguments "start-server" -TimeoutMilliseconds $startTimeoutMs
+        if ($startRes.TimedOut) {
+            Write-Warning "ADB start-server timed out after $startTimeoutSec seconds."
+        }
+        Start-Sleep -Milliseconds 500
+
+        $devicesRes = Invoke-AdbProcess -AdbPath $AdbPath -Arguments "devices -l" -TimeoutMilliseconds $devicesTimeoutMs
+
+        if ($devicesRes.TimedOut) {
+            $lastErrorMsg = "'adb devices -l' timed out after $devicesTimeoutSec seconds."
+        } elseif ($devicesRes.ExitCode -eq 0) {
+            $recovered = $true
+            Write-Host "ADB server successfully recovered and responsive." -ForegroundColor Green
+            break
+        } else {
+            $outputStr = ($devicesRes.Output + "`n" + $devicesRes.Error).Trim()
+            $lastErrorMsg = "'adb devices -l' returned exit code $($devicesRes.ExitCode). Output: $outputStr"
+        }
+    }
+
+    if (-not $recovered) {
+        Write-Error "Unrecoverable ADB failure before Desktop launch.`n$lastErrorMsg`nPlease check ADB background processes, system port 5037, or device connections."
+        exit 1
+    }
+}
+
 $scriptDir = $PSScriptRoot
 $slnPath = Join-Path $scriptDir "windows\AgentDesk.sln"
 
@@ -217,6 +453,14 @@ if ($NoLaunch) {
     Write-Host "Desktop Host Executable: $desktopExePath"
     Write-Host "Hook Executable:         $hookExePath"
     exit 0
+}
+
+# Step 3.6: Recover ADB server before launching Desktop
+$adbExe = Find-AdbExecutable
+if ($adbExe) {
+    Invoke-AdbRecovery -AdbPath $adbExe
+} else {
+    Write-Warning "adb.exe could not be discovered in PATH, ANDROID_HOME, ANDROID_SDK_ROOT, or LOCALAPPDATA. Skipping ADB recovery."
 }
 
 # Step 4: Launch newly published AgentDesk.Desktop.exe

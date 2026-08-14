@@ -1,4 +1,7 @@
+using System.Diagnostics;
+using System.Text;
 using AgentDesk.Core.Usage;
+using AgentDesk.Server.Usage;
 using Xunit;
 
 namespace AgentDesk.Core.Tests;
@@ -151,5 +154,176 @@ public class AntigravityUsageParserTests
 
         Assert.Null(snapshot?.ClaudeFiveHourRemainingPercent);
         Assert.Equal(string.Empty, snapshot?.ClaudeFiveHourRefreshText ?? string.Empty);
+    }
+
+    [Fact]
+    public void Parse_TabDelimited_TwoGroupsWithIsoTimestamps()
+    {
+        string sample =
+            "Gemini Models\tWeekly Limit Remaining\t94%\t2026-08-19T03:44:47Z\n" +
+            "Gemini Models\tFive Hour Limit Remaining\t85%\t2026-08-14T14:34:00Z\n" +
+            "Claude and GPT Models\tWeekly Limit Remaining\t100%\t2026-08-19T03:44:47Z\n" +
+            "Claude and GPT Models\tFive Hour Limit Remaining\t70%\t2026-08-14T15:00:00Z";
+
+        var snapshot = AntigravityUsageParser.Parse(sample);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(94, snapshot.WeeklyRemainingPercent);
+        Assert.Equal("2026-08-19T03:44:47Z", snapshot.WeeklyRefreshText);
+        Assert.Equal(85, snapshot.FiveHourRemainingPercent);
+        Assert.Equal("2026-08-14T14:34:00Z", snapshot.FiveHourRefreshText);
+
+        Assert.Equal(85, snapshot.GeminiFiveHourRemainingPercent);
+        Assert.Equal("2026-08-14T14:34:00Z", snapshot.GeminiFiveHourRefreshText);
+
+        Assert.Equal(70, snapshot.ClaudeFiveHourRemainingPercent);
+        Assert.Equal("2026-08-14T15:00:00Z", snapshot.ClaudeFiveHourRefreshText);
+    }
+
+    [Fact]
+    public void Parse_TabDelimited_ClaudeDisabled_ReturnsNullPercentAndDisabledText()
+    {
+        string sample =
+            "Gemini Models\tWeekly Limit Remaining\t94%\t2026-08-19T03:44:47Z\n" +
+            "Gemini Models\tFive Hour Limit Remaining\t85%\t2026-08-14T14:34:00Z\n" +
+            "Claude and GPT Models\tWeekly Limit Remaining\t100%\t2026-08-19T03:44:47Z\n" +
+            "Claude and GPT Models\tFive Hour Limit Remaining\tDisabled\t";
+
+        var snapshot = AntigravityUsageParser.Parse(sample);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(94, snapshot.WeeklyRemainingPercent);
+        Assert.Equal("2026-08-19T03:44:47Z", snapshot.WeeklyRefreshText);
+        Assert.Equal(85, snapshot.FiveHourRemainingPercent);
+        Assert.Equal("2026-08-14T14:34:00Z", snapshot.FiveHourRefreshText);
+
+        Assert.Equal(85, snapshot.GeminiFiveHourRemainingPercent);
+        Assert.Equal("2026-08-14T14:34:00Z", snapshot.GeminiFiveHourRefreshText);
+
+        Assert.Null(snapshot.ClaudeFiveHourRemainingPercent);
+        Assert.Equal("disabled", snapshot.ClaudeFiveHourRefreshText);
+    }
+
+    [Fact]
+    public void Parse_TabDelimited_GeminiDisabled_ReturnsNullPercentAndDisabledText()
+    {
+        string sample =
+            "Gemini Models\tWeekly Limit Remaining\t94%\t2026-08-19T03:44:47Z\n" +
+            "Gemini Models\tFive Hour Limit Remaining\tDisabled: weekly limit reached\t\n" +
+            "Claude and GPT Models\tWeekly Limit Remaining\t100%\t2026-08-19T03:44:47Z\n" +
+            "Claude and GPT Models\tFive Hour Limit Remaining\t60%\t2026-08-14T15:00:00Z";
+
+        var snapshot = AntigravityUsageParser.Parse(sample);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(94, snapshot.WeeklyRemainingPercent);
+        Assert.Equal("2026-08-19T03:44:47Z", snapshot.WeeklyRefreshText);
+
+        Assert.Null(snapshot.FiveHourRemainingPercent);
+        Assert.Equal("disabled", snapshot.FiveHourRefreshText);
+
+        Assert.Null(snapshot.GeminiFiveHourRemainingPercent);
+        Assert.Equal("disabled", snapshot.GeminiFiveHourRefreshText);
+
+        Assert.Equal(60, snapshot.ClaudeFiveHourRemainingPercent);
+        Assert.Equal("2026-08-14T15:00:00Z", snapshot.ClaudeFiveHourRefreshText);
+    }
+
+    [Fact]
+    public void Parse_TabDelimited_WithAnsiAndEmptyLines_ParsesCorrectly()
+    {
+        string sample =
+            "\n" +
+            "\u001b[32mGemini Models\tWeekly Limit Remaining\t96.26%\t2026-08-19T03:44:47Z\u001b[0m\n" +
+            "\n" +
+            "Gemini Models\tFive Hour Limit Remaining\t78.19%\t2026-08-14T14:34:00Z\n" +
+            "\n";
+
+        var snapshot = AntigravityUsageParser.Parse(sample);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(96, snapshot.WeeklyRemainingPercent);
+        Assert.Equal("2026-08-19T03:44:47Z", snapshot.WeeklyRefreshText);
+        Assert.Equal(78, snapshot.FiveHourRemainingPercent);
+        Assert.Equal("2026-08-14T14:34:00Z", snapshot.FiveHourRefreshText);
+        Assert.Equal(78, snapshot.GeminiFiveHourRemainingPercent);
+        Assert.Null(snapshot.ClaudeFiveHourRemainingPercent);
+    }
+
+    [Fact]
+    public void Parse_TabDelimited_HeaderRowAndUnrelatedRows_Ignored()
+    {
+        string sample =
+            "Group\tWindow\tRemaining\tReset Time\n" +
+            "Gemini Models\tWeekly Limit Remaining\t90%\t2026-08-19T03:44:47Z\n" +
+            "Unrelated Header\tInvalid Column\tFoo\tBar\n" +
+            "Claude and GPT Models\tWeekly Limit Remaining\t100%\t2026-08-19T03:44:47Z";
+
+        var snapshot = AntigravityUsageParser.Parse(sample);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(90, snapshot.WeeklyRemainingPercent);
+        Assert.Equal("2026-08-19T03:44:47Z", snapshot.WeeklyRefreshText);
+    }
+
+    [Fact]
+    public void BuildStartInfo_ConfiguresProcessStartInfoCorrectly()
+    {
+        var startInfo = PowerShellAntigravityRunner.BuildStartInfo(
+            cli: "agy",
+            pwshPath: "pwsh.exe",
+            cwd: @"C:\test\working_dir");
+
+        Assert.False(startInfo.UseShellExecute);
+        Assert.True(startInfo.CreateNoWindow);
+        Assert.Equal(ProcessWindowStyle.Hidden, startInfo.WindowStyle);
+        Assert.True(startInfo.RedirectStandardOutput);
+        Assert.True(startInfo.RedirectStandardError);
+        Assert.Equal(Encoding.UTF8, startInfo.StandardOutputEncoding);
+        Assert.Equal(Encoding.UTF8, startInfo.StandardErrorEncoding);
+        Assert.Equal(@"C:\test\working_dir", startInfo.WorkingDirectory);
+
+        Assert.Contains("-NoLogo", startInfo.ArgumentList);
+        Assert.Contains("-NoProfile", startInfo.ArgumentList);
+        Assert.Contains("-NonInteractive", startInfo.ArgumentList);
+        Assert.Contains("-WindowStyle", startInfo.ArgumentList);
+        Assert.Contains("Hidden", startInfo.ArgumentList);
+        Assert.Contains("-Command", startInfo.ArgumentList);
+
+        int cmdIndex = startInfo.ArgumentList.IndexOf("-Command");
+        Assert.True(cmdIndex >= 0 && cmdIndex + 1 < startInfo.ArgumentList.Count);
+        string staticCmd = startInfo.ArgumentList[cmdIndex + 1];
+        int expectedInnerTimeoutSeconds = (int)PowerShellAntigravityRunner.DefaultInnerTimeout.TotalSeconds;
+        Assert.Equal($"& $env:AGENTDESK_AGY_EXE -p \"/usage\" --print-timeout {expectedInnerTimeoutSeconds}s; exit $LASTEXITCODE", staticCmd);
+
+        Assert.Equal("1", startInfo.EnvironmentVariables["AGY_CLI_HIDE_ACCOUNT_INFO"]);
+        Assert.False(string.IsNullOrEmpty(startInfo.EnvironmentVariables["AGENTDESK_AGY_EXE"]));
+    }
+
+    [Fact]
+    public void PowerShellAntigravityRunner_OuterTimeout_IsStrictlyGreaterThanAgyPrintTimeout()
+    {
+        var runner = new PowerShellAntigravityRunner();
+
+        var startInfo = PowerShellAntigravityRunner.BuildStartInfo(
+            cli: "agy",
+            pwshPath: "pwsh.exe",
+            cwd: @"C:\test\working_dir");
+
+        int cmdIndex = startInfo.ArgumentList.IndexOf("-Command");
+        Assert.True(cmdIndex >= 0 && cmdIndex + 1 < startInfo.ArgumentList.Count);
+        string cmd = startInfo.ArgumentList[cmdIndex + 1];
+
+        var match = System.Text.RegularExpressions.Regex.Match(cmd, @"--print-timeout\s+(\d+)s");
+        Assert.True(match.Success, "Command must specify --print-timeout with integer seconds");
+        int innerTimeoutSeconds = int.Parse(match.Groups[1].Value);
+
+        Assert.Equal((int)PowerShellAntigravityRunner.DefaultInnerTimeout.TotalSeconds, innerTimeoutSeconds);
+        Assert.True(runner.Timeout.TotalSeconds > innerTimeoutSeconds,
+            $"Outer runner timeout ({runner.Timeout.TotalSeconds}s) must be strictly greater than inner agy print timeout ({innerTimeoutSeconds}s)");
+        Assert.True(runner.Timeout.TotalSeconds - innerTimeoutSeconds >= 10,
+            $"Outer runner timeout grace ({runner.Timeout.TotalSeconds - innerTimeoutSeconds}s) must provide sufficient bounded cleanup time");
+        Assert.Equal(PowerShellAntigravityRunner.DefaultOuterTimeout, runner.Timeout);
+        Assert.Equal(PowerShellAntigravityRunner.DefaultInnerTimeout, TimeSpan.FromSeconds(innerTimeoutSeconds));
     }
 }
