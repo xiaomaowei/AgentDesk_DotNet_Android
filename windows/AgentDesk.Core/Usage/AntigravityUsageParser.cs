@@ -52,7 +52,7 @@ public static class AntigravityUsageParser
                     Group = currentGroup,
                     Window = currentWindow,
                     RemainingPercent = pendingPercent.HasValue ? Math.Clamp(pendingPercent.Value, 0, 100) : null,
-                    RefreshText = pendingRefresh
+                    RefreshText = FormatRefreshText(pendingRefresh)
                 });
             }
             pendingPercent = null;
@@ -109,7 +109,7 @@ public static class AntigravityUsageParser
                                 Group = group,
                                 Window = window,
                                 RemainingPercent = percent.HasValue ? Math.Clamp(percent.Value, 0, 100) : null,
-                                RefreshText = refresh
+                                RefreshText = FormatRefreshText(refresh)
                             });
                         }
                     }
@@ -264,8 +264,28 @@ public static class AntigravityUsageParser
                Regex.IsMatch(trimmed, @"^disabled\b", RegexOptions.IgnoreCase);
     }
 
+    private static readonly TimeSpan UtcPlus8Offset = TimeSpan.FromHours(8);
+
     private static bool IsGroupHeading(string line)
     {
         return Regex.IsMatch(line, @"^[A-Z][A-Z0-9 &/+_.-]{2,}$") && !WindowRegex.IsMatch(line);
+    }
+
+    private static string FormatRefreshText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+
+        string trimmed = text.Trim();
+        if (trimmed.Equals("disabled", StringComparison.OrdinalIgnoreCase))
+        {
+            return "disabled";
+        }
+
+        if (DateTimeOffset.TryParse(trimmed, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out var dto))
+        {
+            return dto.ToOffset(UtcPlus8Offset).ToString("MM/dd HH:mm", CultureInfo.InvariantCulture);
+        }
+
+        return trimmed;
     }
 }

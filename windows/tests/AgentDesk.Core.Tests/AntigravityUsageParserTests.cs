@@ -169,15 +169,15 @@ public class AntigravityUsageParserTests
 
         Assert.NotNull(snapshot);
         Assert.Equal(94, snapshot.WeeklyRemainingPercent);
-        Assert.Equal("2026-08-19T03:44:47Z", snapshot.WeeklyRefreshText);
+        Assert.Equal("08/19 11:44", snapshot.WeeklyRefreshText);
         Assert.Equal(85, snapshot.FiveHourRemainingPercent);
-        Assert.Equal("2026-08-14T14:34:00Z", snapshot.FiveHourRefreshText);
+        Assert.Equal("08/14 22:34", snapshot.FiveHourRefreshText);
 
         Assert.Equal(85, snapshot.GeminiFiveHourRemainingPercent);
-        Assert.Equal("2026-08-14T14:34:00Z", snapshot.GeminiFiveHourRefreshText);
+        Assert.Equal("08/14 22:34", snapshot.GeminiFiveHourRefreshText);
 
         Assert.Equal(70, snapshot.ClaudeFiveHourRemainingPercent);
-        Assert.Equal("2026-08-14T15:00:00Z", snapshot.ClaudeFiveHourRefreshText);
+        Assert.Equal("08/14 23:00", snapshot.ClaudeFiveHourRefreshText);
     }
 
     [Fact]
@@ -193,12 +193,12 @@ public class AntigravityUsageParserTests
 
         Assert.NotNull(snapshot);
         Assert.Equal(94, snapshot.WeeklyRemainingPercent);
-        Assert.Equal("2026-08-19T03:44:47Z", snapshot.WeeklyRefreshText);
+        Assert.Equal("08/19 11:44", snapshot.WeeklyRefreshText);
         Assert.Equal(85, snapshot.FiveHourRemainingPercent);
-        Assert.Equal("2026-08-14T14:34:00Z", snapshot.FiveHourRefreshText);
+        Assert.Equal("08/14 22:34", snapshot.FiveHourRefreshText);
 
         Assert.Equal(85, snapshot.GeminiFiveHourRemainingPercent);
-        Assert.Equal("2026-08-14T14:34:00Z", snapshot.GeminiFiveHourRefreshText);
+        Assert.Equal("08/14 22:34", snapshot.GeminiFiveHourRefreshText);
 
         Assert.Null(snapshot.ClaudeFiveHourRemainingPercent);
         Assert.Equal("disabled", snapshot.ClaudeFiveHourRefreshText);
@@ -217,7 +217,7 @@ public class AntigravityUsageParserTests
 
         Assert.NotNull(snapshot);
         Assert.Equal(94, snapshot.WeeklyRemainingPercent);
-        Assert.Equal("2026-08-19T03:44:47Z", snapshot.WeeklyRefreshText);
+        Assert.Equal("08/19 11:44", snapshot.WeeklyRefreshText);
 
         Assert.Null(snapshot.FiveHourRemainingPercent);
         Assert.Equal("disabled", snapshot.FiveHourRefreshText);
@@ -226,7 +226,7 @@ public class AntigravityUsageParserTests
         Assert.Equal("disabled", snapshot.GeminiFiveHourRefreshText);
 
         Assert.Equal(60, snapshot.ClaudeFiveHourRemainingPercent);
-        Assert.Equal("2026-08-14T15:00:00Z", snapshot.ClaudeFiveHourRefreshText);
+        Assert.Equal("08/14 23:00", snapshot.ClaudeFiveHourRefreshText);
     }
 
     [Fact]
@@ -243,9 +243,9 @@ public class AntigravityUsageParserTests
 
         Assert.NotNull(snapshot);
         Assert.Equal(96, snapshot.WeeklyRemainingPercent);
-        Assert.Equal("2026-08-19T03:44:47Z", snapshot.WeeklyRefreshText);
+        Assert.Equal("08/19 11:44", snapshot.WeeklyRefreshText);
         Assert.Equal(78, snapshot.FiveHourRemainingPercent);
-        Assert.Equal("2026-08-14T14:34:00Z", snapshot.FiveHourRefreshText);
+        Assert.Equal("08/14 22:34", snapshot.FiveHourRefreshText);
         Assert.Equal(78, snapshot.GeminiFiveHourRemainingPercent);
         Assert.Null(snapshot.ClaudeFiveHourRemainingPercent);
     }
@@ -263,7 +263,44 @@ public class AntigravityUsageParserTests
 
         Assert.NotNull(snapshot);
         Assert.Equal(90, snapshot.WeeklyRemainingPercent);
-        Assert.Equal("2026-08-19T03:44:47Z", snapshot.WeeklyRefreshText);
+        Assert.Equal("08/19 11:44", snapshot.WeeklyRefreshText);
+    }
+
+    [Fact]
+    public void Parse_TabDelimited_IsoTimestamp_ExactUserExample_FormatsAsUtcPlus8()
+    {
+        string sample =
+            "Gemini Models\tWeekly Limit Remaining\t90%\t2026-08-17T07:36:06Z\n" +
+            "Gemini Models\tFive Hour Limit Remaining\t80%\t2026-08-17T07:36:06Z";
+
+        var snapshot = AntigravityUsageParser.Parse(sample);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(90, snapshot.WeeklyRemainingPercent);
+        Assert.Equal("08/17 15:36", snapshot.WeeklyRefreshText);
+        Assert.Equal(80, snapshot.FiveHourRemainingPercent);
+        Assert.Equal("08/17 15:36", snapshot.FiveHourRefreshText);
+        Assert.Equal(80, snapshot.GeminiFiveHourRemainingPercent);
+        Assert.Equal("08/17 15:36", snapshot.GeminiFiveHourRefreshText);
+    }
+
+    [Fact]
+    public void Parse_TabDelimited_IsoTimestamp_CrossesUtcPlus8DateBoundary()
+    {
+        // 2026-08-17T20:30:00Z + 8h = 2026-08-18 04:30
+        string sample =
+            "Claude and GPT Models\tWeekly Limit Remaining\t95%\t2026-08-17T20:30:00Z\n" +
+            "Claude and GPT Models\tFive Hour Limit Remaining\t65%\t2026-08-17T23:59:59Z";
+
+        var snapshot = AntigravityUsageParser.Parse(sample);
+
+        Assert.NotNull(snapshot);
+        Assert.Equal(95, snapshot.WeeklyRemainingPercent);
+        Assert.Equal("08/18 04:30", snapshot.WeeklyRefreshText);
+        Assert.Equal(65, snapshot.FiveHourRemainingPercent);
+        Assert.Equal("08/18 07:59", snapshot.FiveHourRefreshText);
+        Assert.Equal(65, snapshot.ClaudeFiveHourRemainingPercent);
+        Assert.Equal("08/18 07:59", snapshot.ClaudeFiveHourRefreshText);
     }
 
     [Fact]
